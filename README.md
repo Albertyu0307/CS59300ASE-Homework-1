@@ -52,7 +52,26 @@ python -m venv .venv
 python3 -m venv .venv
 ```
 
-**3. Activate it**
+**3. Windows only: allow PowerShell to run the activation script** (macOS/Linux: skip to step 4)
+
+Activating the virtual environment runs a PowerShell script, and Windows blocks scripts by default ("running scripts is disabled on this system"). Check the current setting:
+
+```powershell
+Get-ExecutionPolicy
+```
+
+If it prints `RemoteSigned`, `Unrestricted` or `Bypass`, scripts are already enabled: skip to step 4. Otherwise (usually `Restricted`), pick **one** of these:
+
+- **Option A: allow scripts permanently for your user account** (one time, no admin rights needed; type `Y` if asked to confirm). Scripts created on your machine can run; scripts downloaded from the internet still need a signature.
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+  ```
+- **Option B: allow scripts in this PowerShell window only.** Nothing is changed permanently, but you must run it again in every new window before activating.
+  ```powershell
+  Set-ExecutionPolicy -Scope Process Bypass
+  ```
+
+**4. Activate the virtual environment**
 
 ```powershell
 # Windows
@@ -65,18 +84,13 @@ source .venv/bin/activate
 
 Your prompt now starts with `(.venv)`.
 
-> **Windows: "running scripts is disabled on this system"?** PowerShell blocks scripts by default. Allow locally created scripts for your user account (one time), then activate again:
-> ```powershell
-> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-> ```
-
-**4. Install the dependencies**
+**5. Install the dependencies**
 
 ```
 pip install -r requirements.txt
 ```
 
-**5. Create your settings file** (optional for now: the defaults run the app without an LLM)
+**6. Create your settings file** (optional for now: the defaults run the app without an LLM)
 
 ```powershell
 # Windows
@@ -89,7 +103,7 @@ cp .env.example .env
 
 ## Running the app
 
-From the `backend` folder, with the virtual environment activated (step 3 again if you opened a new terminal):
+From the `backend` folder, with the virtual environment activated. In a new terminal, activate it again first (step 4; on Windows with Option B, step 3 too):
 
 ```
 uvicorn app.main:app --reload
@@ -103,7 +117,7 @@ Then open **http://localhost:8000** in a browser. Stop the server with `Ctrl+C`.
 
 ## Configuration
 
-Settings are read from `backend/.env` (created in setup step 5). Every setting has a default, so the file is optional.
+Settings are read from `backend/.env` (created in setup step 6). Every setting has a default, so the file is optional.
 
 | Variable | Default | Meaning |
 |---|---|---|
