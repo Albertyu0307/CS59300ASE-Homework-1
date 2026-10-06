@@ -1,0 +1,8 @@
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+sqlmodel==0.0.47
+httpx==0.28.1
+feedparser==6.0.14
+pymupdf==1.28.2
+pydantic-settings==2.15.0
+python-multipart==0.0.32

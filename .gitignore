@@ -7,3 +7,14 @@
 # Logs & scratch
 *.log
 scratch/
+
+# Secrets (commit .env.example, never .env)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Runtime data (SQLite DB, downloaded/uploaded PDFs)
+backend/data/

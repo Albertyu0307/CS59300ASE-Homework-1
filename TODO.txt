@@ -10,14 +10,16 @@ PHASE 0 -- Environment & project setup                    target: Mon 10/5
 ======================================================================
 [x] Install Python 3.13 (3.13.15 via winget, user scope; on PATH ahead of the Store stub)
     -> restart VS Code / open a new terminal so `python` resolves to it
-[ ] Extend .gitignore: .env, backend/data/, __pycache__/, .venv/
-[ ] Backend skeleton: backend/app/ package, requirements.txt, .env.example, venv
+[x] Extend .gitignore: .env, backend/data/, __pycache__/, .venv/
+[x] Backend skeleton: backend/app/ package, requirements.txt, .env.example, venv,
+    backend/tests/ placeholder (HW2 builds on it)
 [ ] Frontend skeleton: frontend/index.html, library.html, paper.html, css/, js/
     (Pico.css, marked, DOMPurify via CDN tags)
 [ ] FastAPI mounts frontend/ as static files at "/" (after the /api routes)
 [ ] Walking skeleton: http://localhost:8000 shows the result of GET /api/health
 [ ] Smoke-test the arXiv API from a scratch script
     (no LLM needed until Phase 4 -- run with LLM_MOCK=true)
+[ ] Run /init so CLAUDE.md captures the layout and run commands
 [ ] Commit
 
 ======================================================================
@@ -57,6 +59,8 @@ DONE WHEN: saved papers survive a full app restart.
 ======================================================================
 PHASE 3 -- Feature 3: PDF upload & processing             target: Wed 10/7
 ======================================================================
+[ ] Find a PDF-processing skill (handout suggestion); read its files before installing
+    ("toxic skills" warning). The built-in `pdf` skill is an option. Screenshot for the report
 [ ] services/pdf_processor.py: extract full text from a PDF (PyMuPDF)
 [ ] Store PDFs in backend/data/pdfs/, path recorded in the DB
 [ ] services/metadata_extractor.py: title / authors / year / abstract via heuristics
@@ -69,6 +73,7 @@ PHASE 3 -- Feature 3: PDF upload & processing             target: Wed 10/7
     (same pipeline as upload). No PDF available -> abstract only, flagged in UI
 [ ] library.html: upload form (<input type="file" accept=".pdf">) with "processing..." state
 [ ] Uploaded papers render with the same renderPaperCard() as search results
+[ ] (opt) GET /api/papers/{id}/pdf serves the stored PDF -> "Open PDF" link on uploads
 [ ] Test with 3+ different real papers (arXiv, conference, two-column layout)
 [ ] Commit
 DONE WHEN: uploaded papers show reasonable metadata and have full text stored.
@@ -90,13 +95,15 @@ PHASE 4 -- Features 4 & 5: LLM summary + Q&A              target: Thu 10/8
 [ ] POST /api/papers/{id}/summary  -> summary from FULL TEXT, cached in DB,
     ?refresh=true regenerates
 [ ] POST /api/papers/{id}/ask {question} -> answer grounded in the full text
-[ ] chat_messages table; GET /api/papers/{id}/messages returns history
+[ ] chatmessage table; GET /api/papers/{id}/messages returns history
 [ ] Very long papers: cap the text and tell the user when it was cut
 [ ] metadata_extractor: add LLM extraction (first ~2 pages -> JSON); heuristics as fallback
 [ ] paper.html + js/paper.js: metadata, Summary section, chat section
 [ ] Render LLM output as Markdown (marked -> DOMPurify -> innerHTML)
 [ ] Quick-question buttons (the 5 example questions from the handout)
 [ ] Friendly errors: missing key, rate limit, paper has no text
+[ ] (opt) Scanned PDFs (almost no extracted text): send the PDF file itself to the
+    LLM if the provider accepts files (e.g. Gemini) -- fallback only
 [ ] (opt) Stream answers token-by-token (SSE)
 [ ] Commit
 DONE WHEN: the summary mentions method/results details that are NOT in the
@@ -114,14 +121,13 @@ PHASE 5 -- Polish, README, deployment                     target: Fri 10/9
     project structure
 [ ] Fresh-clone test: follow the README from scratch in a new folder
 [ ] Secret check before pushing: git grep for the key / "API_KEY=" (history too)
-[ ] backend/tests/ placeholder (HW2 builds on it)
+[ ] Demo video: search -> save -> upload PDF -> summary -> ask a question
+    (LLM_MOCK=false; use the best model the chosen provider allows)
 [ ] Final commit + push
 
 ======================================================================
 PHASE 6 -- Submission deliverables (non-code)             target: Sat 10/10
 ======================================================================
-[ ] Demo video: search -> save -> upload PDF -> summary -> ask a question
-    (LLM_MOCK=false; use the best model the chosen provider allows)
 [ ] Reflection report (deferred) -- but SCREENSHOT agent interactions as you
     go, especially when the agent gets something wrong; they can't be recreated later
 [ ] Submit on Brightspace: GitHub link + video + report
