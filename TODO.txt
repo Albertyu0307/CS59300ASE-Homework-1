@@ -1,0 +1,127 @@
+CS 59300 ASE -- HW1: AI Research Assistant -- TODO
+Due: Sat Oct 10, 11:59 PM
+Legend:  [ ] todo   [~] in progress   [x] done   (opt) = nice-to-have, skip if short on time
+See PLAN.md for the architecture, file layout, and the reasoning behind each item.
+Constraints: total cost $0; frontend is plain HTML/CSS/JS (no build step);
+             LLM provider is decided at the start of Phase 4 (PLAN.md section 4).
+
+======================================================================
+PHASE 0 -- Environment & project setup                    target: Mon 10/5
+======================================================================
+[x] Install Python 3.13 (3.13.15 via winget, user scope; on PATH ahead of the Store stub)
+    -> restart VS Code / open a new terminal so `python` resolves to it
+[ ] Extend .gitignore: .env, backend/data/, __pycache__/, .venv/
+[ ] Backend skeleton: backend/app/ package, requirements.txt, .env.example, venv
+[ ] Frontend skeleton: frontend/index.html, library.html, paper.html, css/, js/
+    (Pico.css, marked, DOMPurify via CDN tags)
+[ ] FastAPI mounts frontend/ as static files at "/" (after the /api routes)
+[ ] Walking skeleton: http://localhost:8000 shows the result of GET /api/health
+[ ] Smoke-test the arXiv API from a scratch script
+    (no LLM needed until Phase 4 -- run with LLM_MOCK=true)
+[ ] Commit
+
+======================================================================
+PHASE 1 -- Feature 1: Search for papers                   target: Tue 10/6
+======================================================================
+[ ] services/search_client.py: call arXiv API, parse Atom XML into a
+    source-agnostic PaperResult (title, authors, year, abstract, url,
+    pdf_url, source, external_id)
+[ ] Handle timeouts / HTTP errors / empty results; don't hammer arXiv (~1 req / 3 s)
+[ ] routers/search.py: GET /api/search?q=...&limit=...
+[ ] Test the endpoint in FastAPI's /docs page before touching the UI
+[ ] js/api.js: searchPapers()
+[ ] js/ui.js: renderPaperCard() -- title, authors, year, abstract (expand/collapse), link
+    (insert text with textContent, never innerHTML)
+[ ] index.html + js/search.js: search form, results list
+[ ] Loading / error / "no results" states
+[ ] (opt) Second provider: Semantic Scholar, selectable in the UI
+[ ] Commit
+DONE WHEN: searching "graph neural networks" shows real papers with all five fields.
+
+======================================================================
+PHASE 2 -- Feature 2: Local library (database)            target: Tue 10/6
+======================================================================
+[ ] database.py: SQLite engine + session dependency + create tables on startup
+[ ] models.py: Paper table (schema in PLAN.md section 7)
+[ ] POST   /api/papers        save a search result (dedupe on source + external_id)
+[ ] GET    /api/papers        list saved papers
+[ ] GET    /api/papers/{id}   one paper
+[ ] DELETE /api/papers/{id}   remove (also delete its PDF file)
+[ ] Save button on each search-result card ("Saved" state if already in library)
+[ ] library.html + js/library.js: list saved papers (reuses renderPaperCard), delete button
+[ ] Each card links to paper.html?id=N
+[ ] Verify persistence: save -> stop backend -> restart -> refresh -> still there
+[ ] Commit
+DONE WHEN: saved papers survive a full app restart.
+
+======================================================================
+PHASE 3 -- Feature 3: PDF upload & processing             target: Wed 10/7
+======================================================================
+[ ] services/pdf_processor.py: extract full text from a PDF (PyMuPDF)
+[ ] Store PDFs in backend/data/pdfs/, path recorded in the DB
+[ ] services/metadata_extractor.py: title / authors / year / abstract via heuristics
+    (PDF metadata, largest font on page 1, "Abstract" regex)
+    -- LLM-based extraction is added in Phase 4; heuristics stay as the fallback
+    [ ] (opt) Detect an arXiv ID in the text and fetch metadata from arXiv (no LLM call)
+[ ] POST /api/papers/upload (multipart) -> extract text + metadata -> save
+[ ] Validate: .pdf only, size limit, clear error for scanned PDFs with no text
+[ ] Saving a SEARCH result also downloads its PDF and extracts full text
+    (same pipeline as upload). No PDF available -> abstract only, flagged in UI
+[ ] library.html: upload form (<input type="file" accept=".pdf">) with "processing..." state
+[ ] Uploaded papers render with the same renderPaperCard() as search results
+[ ] Test with 3+ different real papers (arXiv, conference, two-column layout)
+[ ] Commit
+DONE WHEN: uploaded papers show reasonable metadata and have full text stored.
+
+======================================================================
+PHASE 4 -- Features 4 & 5: LLM summary + Q&A              target: Thu 10/8
+======================================================================
+[ ] DECIDE THE LLM PROVIDER (PLAN.md section 4):
+    [ ] Retest OVHcloud keyless with requests spaced ~1 min apart: how often do they succeed?
+        (Oct 5 test: 8 of 9 paper-sized requests got HTTP 429; the one that
+        succeeded answered correctly in 5.4 s -> works, but heavily throttled)
+    [ ] If keyless doesn't work: free Gemini key (billing NOT enabled) in backend/.env
+    [ ] Smoke test the chosen provider from a scratch script
+[ ] services/llm_client.py: the only module that talks to an LLM;
+    LLM_BASE_URL / LLM_API_KEY / LLM_MODEL from .env
+[ ] LLM_MOCK=true mode: return canned text, no API call (build the UI without using quota)
+[ ] On HTTP 429: retry with backoff, then "LLM rate limit reached, try again shortly"
+[ ] services/prompts.py: summary, Q&A, and metadata-extraction prompts
+[ ] POST /api/papers/{id}/summary  -> summary from FULL TEXT, cached in DB,
+    ?refresh=true regenerates
+[ ] POST /api/papers/{id}/ask {question} -> answer grounded in the full text
+[ ] chat_messages table; GET /api/papers/{id}/messages returns history
+[ ] Very long papers: cap the text and tell the user when it was cut
+[ ] metadata_extractor: add LLM extraction (first ~2 pages -> JSON); heuristics as fallback
+[ ] paper.html + js/paper.js: metadata, Summary section, chat section
+[ ] Render LLM output as Markdown (marked -> DOMPurify -> innerHTML)
+[ ] Quick-question buttons (the 5 example questions from the handout)
+[ ] Friendly errors: missing key, rate limit, paper has no text
+[ ] (opt) Stream answers token-by-token (SSE)
+[ ] Commit
+DONE WHEN: the summary mentions method/results details that are NOT in the
+abstract, and all 5 example questions get sensible answers.
+
+======================================================================
+PHASE 5 -- Polish, README, deployment                     target: Fri 10/9
+======================================================================
+[ ] Consistent loading / error states across all pages
+[ ] Shared nav bar (Search | Library) on every page, reasonable styling
+[ ] (opt) Dockerfile for one-command startup
+[ ] (opt) Online deployment on a free tier that needs no card -- SQLite needs a persistent disk
+[ ] README: overview, features, architecture, prerequisites, setup
+    (Windows + macOS/Linux), env vars (+ how to get a key if one is needed), how to run,
+    project structure
+[ ] Fresh-clone test: follow the README from scratch in a new folder
+[ ] Secret check before pushing: git grep for the key / "API_KEY=" (history too)
+[ ] backend/tests/ placeholder (HW2 builds on it)
+[ ] Final commit + push
+
+======================================================================
+PHASE 6 -- Submission deliverables (non-code)             target: Sat 10/10
+======================================================================
+[ ] Demo video: search -> save -> upload PDF -> summary -> ask a question
+    (LLM_MOCK=false; use the best model the chosen provider allows)
+[ ] Reflection report (deferred) -- but SCREENSHOT agent interactions as you
+    go, especially when the agent gets something wrong; they can't be recreated later
+[ ] Submit on Brightspace: GitHub link + video + report
