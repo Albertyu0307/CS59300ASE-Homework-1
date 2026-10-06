@@ -118,7 +118,7 @@ PHASE 5 -- Polish, README, deployment                     target: Fri 10/9
 [ ] Shared nav bar (Search | Library) on every page, reasonable styling
 [ ] (opt) Dockerfile for one-command startup
 [ ] (opt) Online deployment on a free tier that needs no card -- SQLite needs a persistent disk
-[ ] README: overview, features, architecture, prerequisites, setup
+[~] README: overview, features, architecture, prerequisites, setup
     (Windows + macOS/Linux), env vars (+ how to get a key if one is needed), how to run,
     project structure
 [ ] Fresh-clone test: follow the README from scratch in a new folder
