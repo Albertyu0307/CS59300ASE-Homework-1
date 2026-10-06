@@ -258,7 +258,7 @@ Design rule: **routers stay thin, services hold the logic, and `llm_client.py` i
 | Method & path | Body / params | Returns | Notes |
 |---|---|---|---|
 | `GET /api/health` | — | `{status:"ok"}` | Walking-skeleton check |
-| `GET /api/search` | `q`, `limit=20` | `PaperResult[]` | Not saved |
+| `GET /api/search` | `q`, `limit=20`, `source=auto` | `PaperResult[]` | Not saved. `source=auto`: arXiv, with OpenAlex as the fallback; `source=openalex`: OpenAlex only |
 | `POST /api/papers` | `PaperResult` | `PaperOut` | Saves, downloads PDF, extracts text; 409 if already saved |
 | `GET /api/papers` | — | `PaperOut[]` | Library list (no full text, to keep it light) |
 | `GET /api/papers/{id}` | — | `PaperOut` | |

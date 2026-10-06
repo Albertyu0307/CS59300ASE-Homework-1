@@ -10,9 +10,19 @@ nav a[aria-current="page"] {
   width: auto;
   padding-inline: 2rem;
 }
+#search-form select {
+  flex: none;
+  width: auto;
+}
+/* One-line explanation of the source choice, tucked under the search form. */
+.source-hint {
+  margin-top: calc(var(--pico-spacing) * -0.5);
+  color: var(--pico-muted-color);
+  font-size: 0.85rem;
+}
 
-/* Loading / error / "no results" line. */
-.status.error {
+/* Loading / error / "no results" line, and inline errors such as "Save failed". */
+.error {
   color: var(--pico-del-color);
 }
 
@@ -48,6 +58,24 @@ nav a[aria-current="page"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
+}
+/* Pico's full-size buttons are too big next to the footer links. */
+.paper-actions button {
+  width: auto;
+  padding: 0.25rem 0.9rem;
+  margin-bottom: 0;
+  font-size: 0.9rem;
+}
+/* Save (search page) and Delete (library) sit at the right end of the footer. */
+.save-control,
+.delete-button {
+  margin-left: auto;
+}
+.save-control {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 /* The site title doubles as a link to the home (search) page. */

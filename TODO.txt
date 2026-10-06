@@ -42,23 +42,30 @@ PHASE 1 -- Feature 1: Search for papers                   target: Tue 10/6
 [x] Fallback provider: OpenAlex (free, no key) when arXiv fails. arXiv blocks IPs for
     20+ min with HTTP 429 (Oct 6); Semantic Scholar keyless was 429ing too. arXiv results
     are cached 1 h, and arXiv is skipped for 10 min after a failure
+[x] Source picker on the search page (added Oct 6, during Phase 2): "arXiv" (OpenAlex as the
+    fallback) or "OpenAlex" only -> GET /api/search?source=auto|openalex; the browser remembers
+    the choice (localStorage). Agent tested the API; the picker itself isn't clicked through yet
 [x] Commit
 DONE WHEN: searching "graph neural networks" shows real papers with all five fields.
 
 ======================================================================
 PHASE 2 -- Feature 2: Local library (database)            target: Tue 10/6
 ======================================================================
-[ ] database.py: SQLite engine + session dependency + create tables on startup
-[ ] models.py: Paper table (schema in PLAN.md section 7)
-[ ] POST   /api/papers        save a search result (dedupe on source + external_id)
-[ ] GET    /api/papers        list saved papers
-[ ] GET    /api/papers/{id}   one paper
-[ ] DELETE /api/papers/{id}   remove (also delete its PDF file)
-[ ] Save button on each search-result card ("Saved" state if already in library)
-[ ] library.html + js/library.js: list saved papers (reuses renderPaperCard), delete button
-[ ] Each card links to paper.html?id=N
-[ ] Verify persistence: save -> stop backend -> restart -> refresh -> still there
-[ ] Commit
+[x] database.py: SQLite engine + session dependency + create tables on startup
+[x] models.py: Paper table (schema in PLAN.md section 7)
+[x] POST   /api/papers        save a search result (dedupe on source + external_id)
+[x] GET    /api/papers        list saved papers
+[x] GET    /api/papers/{id}   one paper
+[x] DELETE /api/papers/{id}   remove (also delete its PDF file)
+[~] Test the endpoints in /docs (agent tested them with curl: 201 / 409 duplicate /
+    422 for source=upload / 404 / 204; still try them yourself in /docs)
+[x] Save button on each search-result card ("Saved" state if already in library)
+[x] library.html + js/library.js: list saved papers (reuses renderPaperCard), delete button
+[x] Each card links to paper.html?id=N (paper.js shows the paper; summary/chat are Phase 4)
+    (UI code is syntax-checked, but the agent couldn't click through it in a browser)
+[~] Verify persistence: save -> stop backend -> restart -> refresh -> still there
+    (agent verified it through the API with a scratch DB; still do it in the browser)
+[x] Commit
 DONE WHEN: saved papers survive a full app restart.
 
 ======================================================================
@@ -68,6 +75,7 @@ PHASE 3 -- Feature 3: PDF upload & processing             target: Wed 10/7
     ("toxic skills" warning). The built-in `pdf` skill is an option. Screenshot for the report
 [ ] services/pdf_processor.py: extract full text from a PDF (PyMuPDF)
 [ ] Store PDFs in backend/data/pdfs/, path recorded in the DB
+    (store pdf_path relative to settings.data_path, e.g. "pdfs/12.pdf"; DELETE resolves it that way)
 [ ] services/metadata_extractor.py: title / authors / year / abstract via heuristics
     (PDF metadata, largest font on page 1, "Abstract" regex)
     -- LLM-based extraction is added in Phase 4; heuristics stay as the fallback
@@ -101,6 +109,7 @@ PHASE 4 -- Features 4 & 5: LLM summary + Q&A              target: Thu 10/8
     ?refresh=true regenerates
 [ ] POST /api/papers/{id}/ask {question} -> answer grounded in the full text
 [ ] chatmessage table; GET /api/papers/{id}/messages returns history
+    (DELETE /api/papers/{id} must then delete the paper's messages too)
 [ ] Very long papers: cap the text and tell the user when it was cut
 [ ] metadata_extractor: add LLM extraction (first ~2 pages -> JSON); heuristics as fallback
 [ ] paper.html + js/paper.js: metadata, Summary section, chat section

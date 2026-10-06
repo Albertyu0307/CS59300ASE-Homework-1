@@ -5,11 +5,25 @@ const MAX_AUTHORS_SHOWN = 6;
 const ABSTRACT_COLLAPSE_CHARS = 300; // shorter abstracts are shown in full, with no toggle
 
 // Creates an element with optional text (set via textContent, so it's never parsed as HTML).
-function el(tag, className, text) {
+export function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text != null) node.textContent = text;
   return node;
+}
+
+// A link that opens outside the app, in a new tab.
+function externalLink(text, href) {
+  const link = el("a", null, text);
+  link.href = href;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  return link;
+}
+
+// The detail page (summary + Q&A) of a saved paper.
+export function paperPageUrl(id) {
+  return `paper.html?id=${encodeURIComponent(id)}`;
 }
 
 function formatAuthors(authors) {
@@ -20,17 +34,19 @@ function formatAuthors(authors) {
 
 // Builds the card for one paper (a search result or a saved paper) and returns the <article>.
 // options.actions: extra elements (e.g. a Save button) appended to the card's footer.
-export function renderPaperCard(paper, { actions = [] } = {}) {
+// options.titleHref: an in-app page for the title to link to (saved papers use paperPageUrl);
+//   without it, the title opens paper.url in a new tab.
+export function renderPaperCard(paper, { actions = [], titleHref = null } = {}) {
   const card = el("article", "paper-card");
 
   const header = el("header");
   const title = el("h3", "paper-title");
-  if (paper.url) {
+  if (titleHref) {
     const link = el("a", null, paper.title);
-    link.href = paper.url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
+    link.href = titleHref;
     title.append(link);
+  } else if (paper.url) {
+    title.append(externalLink(paper.title, paper.url));
   } else {
     title.textContent = paper.title;
   }
@@ -59,18 +75,10 @@ export function renderPaperCard(paper, { actions = [] } = {}) {
 
   const footer = el("footer", "paper-actions");
   if (paper.url) {
-    const link = el("a", null, paper.source === "arxiv" ? "View on arXiv" : "View paper");
-    link.href = paper.url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    footer.append(link);
+    footer.append(externalLink(paper.source === "arxiv" ? "View on arXiv" : "View paper", paper.url));
   }
   if (paper.pdf_url) {
-    const link = el("a", null, "PDF");
-    link.href = paper.pdf_url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    footer.append(link);
+    footer.append(externalLink("PDF", paper.pdf_url));
   }
   footer.append(...actions);
   card.append(footer);

@@ -14,7 +14,7 @@ One Python program: a **FastAPI** backend that serves both the JSON API (`/api/.
 |---|---|
 | Backend | Python, FastAPI, Uvicorn |
 | Database | SQLite (a single file in `backend/data/`) |
-| Paper search | arXiv API, with OpenAlex as the fallback when arXiv is rate-limiting (both free, no key) |
+| Paper search | arXiv API, with OpenAlex as the fallback when arXiv is rate-limiting (both free, no key). The search page can also be set to use OpenAlex only |
 | PDF processing | PyMuPDF |
 | Frontend | Plain HTML, CSS and JavaScript; Pico.css, marked and DOMPurify loaded from a CDN |
 

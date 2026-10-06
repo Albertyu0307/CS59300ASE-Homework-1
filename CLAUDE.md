@@ -44,6 +44,7 @@ No lint or test setup exists yet. Throwaway experiments go in `scratch/` (gitign
 ## Gotchas
 
 - arXiv API (`https://export.arxiv.org/api/query`, Atom XML parsed with feedparser): join query words with AND (`all:graph AND all:neural AND all:networks`). A plain `all:graph neural networks` matches ANY word and returns off-topic results. Keep to ~1 request per 3 s.
-- arXiv blocks an IP for 20+ min with HTTP 429 (`Rate exceeded.`, no `Retry-After`; sometimes only after a 30 s hang) after a handful of requests, even when spaced out. `search_client` therefore caches arXiv results, skips arXiv for 10 min after any failure and falls back to OpenAlex. Test against arXiv sparingly. arXiv abs pages and PDF downloads are not affected.
+- arXiv blocks an IP for 20+ min with HTTP 429 (`Rate exceeded.`, no `Retry-After`; sometimes only after a 30 s hang) after a handful of requests, even when spaced out. `search_client` therefore caches arXiv results, skips arXiv for 10 min after any failure and falls back to OpenAlex. Test against arXiv sparingly: `GET /api/search?...&source=openalex` (the search page's source picker) never contacts arXiv. arXiv abs pages and PDF downloads are not affected.
+- There are no migrations: `create_db()` (`SQLModel.metadata.create_all`) creates missing tables but never alters existing ones. After changing a column in `models.py`, delete `backend/data/library.db` (a new table such as `chatmessage` is picked up automatically).
 - Windows console output can garble non-ASCII text (e.g. author names); set `PYTHONIOENCODING=utf-8` when printing. The data itself is fine.
 - Existing text files use CRLF and `core.autocrlf=true`; Git's "LF will be replaced by CRLF" warnings are harmless.

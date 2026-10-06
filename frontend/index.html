@@ -21,12 +21,20 @@
 
   <main class="container">
     <h1>Search papers</h1>
-    <!-- Submits as index.html?q=..., so results survive a refresh and the back button works. -->
+    <!-- Submits as index.html?q=...&source=..., so results survive a refresh and the back button works. -->
     <form id="search-form" role="search" action="index.html" method="get">
       <input type="search" name="q" id="search-input" placeholder="e.g. graph neural networks"
-             aria-label="Search arXiv papers" required maxlength="300">
+             aria-label="Search papers" required maxlength="300">
+      <select name="source" id="search-source" aria-label="Search source" aria-describedby="source-hint">
+        <option value="auto">arXiv</option>
+        <option value="openalex">OpenAlex</option>
+      </select>
       <button type="submit">Search</button>
     </form>
+    <p id="source-hint" class="source-hint">
+      arXiv switches to OpenAlex automatically when it's unavailable. OpenAlex also covers journals,
+      but not every result has a PDF.
+    </p>
     <p id="status" class="status" role="status" hidden></p>
     <section id="results"></section>
   </main>

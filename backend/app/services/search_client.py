@@ -3,6 +3,7 @@
 import re
 import threading
 import time
+from typing import Literal
 
 import feedparser
 import httpx
@@ -28,12 +29,18 @@ _arxiv_unavailable_until = 0.0
 _cache: dict[tuple[str, int], tuple[float, list[PaperResult]]] = {}  # key -> (stored_at, results)
 
 
+# "auto": arXiv, with OpenAlex as the fallback. "openalex": OpenAlex only, never contacting arXiv.
+SearchSource = Literal["auto", "openalex"]
+
+
 class SearchError(Exception):
     """The search API could not be reached or returned an error. The message is user-facing."""
 
 
-def search_papers(query: str, limit: int = 20) -> list[PaperResult]:
-    """Search arXiv; if arXiv is unavailable, search OpenAlex instead."""
+def search_papers(query: str, limit: int = 20, source: SearchSource = "auto") -> list[PaperResult]:
+    """Search arXiv; if arXiv is unavailable, search OpenAlex instead. source="openalex" skips arXiv."""
+    if source == "openalex":
+        return search_openalex(query, limit)
     try:
         return search_arxiv(query, limit)
     except SearchError as arxiv_error:
