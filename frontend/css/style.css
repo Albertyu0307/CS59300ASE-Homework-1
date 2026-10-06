@@ -1,0 +1,5 @@
+/* Small tweaks on top of Pico.css. */
+
+nav a[aria-current="page"] {
+  font-weight: bold;
+}

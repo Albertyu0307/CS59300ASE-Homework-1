@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Search · AI Research Assistant</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="container">
+    <nav>
+      <ul><li><strong>AI Research Assistant</strong></li></ul>
+      <ul>
+        <li><a href="index.html" aria-current="page">Search</a></li>
+        <li><a href="library.html">Library</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h1>Search papers</h1>
+    <!-- Phase 1: search form + results list -->
+    <section id="results"></section>
+  </main>
+
+  <footer class="container">
+    <small id="health">Backend: checking...</small>
+  </footer>
+
+  <script type="module" src="js/search.js"></script>
+</body>
+</html>

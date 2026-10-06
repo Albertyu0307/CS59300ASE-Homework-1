@@ -13,14 +13,14 @@ PHASE 0 -- Environment & project setup                    target: Mon 10/5
 [x] Extend .gitignore: .env, backend/data/, __pycache__/, .venv/
 [x] Backend skeleton: backend/app/ package, requirements.txt, .env.example, venv,
     backend/tests/ placeholder (HW2 builds on it)
-[ ] Frontend skeleton: frontend/index.html, library.html, paper.html, css/, js/
+[x] Frontend skeleton: frontend/index.html, library.html, paper.html, css/, js/
     (Pico.css, marked, DOMPurify via CDN tags)
-[ ] FastAPI mounts frontend/ as static files at "/" (after the /api routes)
-[ ] Walking skeleton: http://localhost:8000 shows the result of GET /api/health
-[ ] Smoke-test the arXiv API from a scratch script
+[x] FastAPI mounts frontend/ as static files at "/" (after the /api routes)
+[x] Walking skeleton: http://localhost:8000 shows the result of GET /api/health
+[x] Smoke-test the arXiv API from a scratch script (scratch/arxiv_smoke.py)
     (no LLM needed until Phase 4 -- run with LLM_MOCK=true)
-[ ] Run /init so CLAUDE.md captures the layout and run commands
-[ ] Commit
+[x] Run /init so CLAUDE.md captures the layout and run commands
+[x] Commit
 
 ======================================================================
 PHASE 1 -- Feature 1: Search for papers                   target: Tue 10/6
@@ -28,6 +28,8 @@ PHASE 1 -- Feature 1: Search for papers                   target: Tue 10/6
 [ ] services/search_client.py: call arXiv API, parse Atom XML into a
     source-agnostic PaperResult (title, authors, year, abstract, url,
     pdf_url, source, external_id)
+    NOTE (Phase 0 smoke test): join the query words with AND ("all:graph AND all:neural
+    AND all:networks"). A plain "all:graph neural networks" matches ANY word -> off-topic results
 [ ] Handle timeouts / HTTP errors / empty results; don't hammer arXiv (~1 req / 3 s)
 [ ] routers/search.py: GET /api/search?q=...&limit=...
 [ ] Test the endpoint in FastAPI's /docs page before touching the UI

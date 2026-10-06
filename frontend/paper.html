@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper · AI Research Assistant</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- LLM output is Markdown: marked converts it to HTML, DOMPurify sanitizes that HTML -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js"></script>
+</head>
+<body>
+  <header class="container">
+    <nav>
+      <ul><li><strong>AI Research Assistant</strong></li></ul>
+      <ul>
+        <li><a href="index.html">Search</a></li>
+        <li><a href="library.html">Library</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Opened as paper.html?id=N -->
+  <main class="container">
+    <section id="paper"></section>
+
+    <section>
+      <h2>Summary</h2>
+      <div id="summary"></div>
+    </section>
+
+    <section>
+      <h2>Ask about this paper</h2>
+      <div id="chat"></div>
+    </section>
+  </main>
+
+  <script type="module" src="js/paper.js"></script>
+</body>
+</html>
