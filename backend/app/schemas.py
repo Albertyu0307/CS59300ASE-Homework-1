@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, computed_field
 
 
 class PaperResult(BaseModel):
@@ -24,12 +24,21 @@ class PaperOut(BaseModel):
 
     id: int
     source: str  # "arxiv", "openalex" or "upload"
-    external_id: str | None
+    external_id: str | None  # for uploads, the SHA-256 of the file
     title: str
     authors: list[str]
     year: int | None
     abstract: str | None
     url: str | None
     pdf_url: str | None
-    text_status: str  # "full", "abstract_only" or "failed"
+    # "full": text extracted from the PDF. "abstract_only": no PDF available.
+    # "failed": the PDF couldn't be downloaded or read. The last two only have the abstract.
+    text_status: str
     created_at: datetime
+    pdf_path: str | None = Field(default=None, exclude=True)  # read from the Paper, never sent
+
+    @computed_field
+    @property
+    def has_pdf(self) -> bool:
+        """A copy of the PDF is stored, served by GET /api/papers/{id}/pdf."""
+        return self.pdf_path is not None

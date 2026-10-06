@@ -42,6 +42,18 @@ export function savePaper(searchResult) {
   return postJson("/api/papers", searchResult);
 }
 
+// Uploads a PDF (a File from an <input type="file">). The backend extracts its text and metadata.
+export function uploadPaper(file) {
+  const form = new FormData();
+  form.append("file", file);
+  return request("/api/papers/upload", { method: "POST", body: form });
+}
+
+// URL of a saved paper's stored PDF (only for papers with has_pdf), for a link rather than fetch().
+export function paperPdfUrl(id) {
+  return `/api/papers/${encodeURIComponent(id)}/pdf`;
+}
+
 export function listPapers() {
   return request("/api/papers");
 }

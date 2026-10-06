@@ -21,7 +21,17 @@
 
   <main class="container">
     <h1>My library</h1>
-    <!-- Phase 3: PDF upload form -->
+    <!-- Uploads as soon as a file is chosen (js/library.js) -->
+    <form id="upload-form">
+      <label for="upload-input">Add a paper from a PDF</label>
+      <input type="file" id="upload-input" name="file" accept=".pdf,application/pdf" aria-describedby="upload-hint">
+      <small id="upload-hint">
+        Up to 25 MB. The text, title, authors, year and abstract are extracted automatically.
+        Scanned PDFs (images of pages) aren't supported.
+      </small>
+    </form>
+    <p id="upload-status" class="status" role="status" hidden></p>
+
     <p id="status" class="status" role="status" hidden></p>
     <section id="papers"></section>
   </main>

@@ -1,8 +1,21 @@
 // Shared helpers used by every page: renderPaperCard(), showLoading(), showError(), renderMarkdown().
 // Insert paper data with textContent, never innerHTML; LLM Markdown goes through DOMPurify.
 
+import { paperPdfUrl } from "./api.js";
+
 const MAX_AUTHORS_SHOWN = 6;
 const ABSTRACT_COLLAPSE_CHARS = 300; // shorter abstracts are shown in full, with no toggle
+
+// Saved papers without full text; the LLM features can then only use the abstract.
+const TEXT_STATUS_LABELS = {
+  abstract_only: "Abstract only: no PDF available",
+  failed: "Abstract only: the PDF couldn't be downloaded or read",
+};
+
+// The warning for a saved paper's text_status, or null when its full text is available.
+export function textStatusLabel(textStatus) {
+  return TEXT_STATUS_LABELS[textStatus] ?? null;
+}
 
 // Creates an element with optional text (set via textContent, so it's never parsed as HTML).
 export function el(tag, className, text) {
@@ -54,6 +67,16 @@ export function renderPaperCard(paper, { actions = [], titleHref = null } = {}) 
 
   const meta = [formatAuthors(paper.authors), paper.year ?? "Year unknown"].join(" · ");
   header.append(el("p", "paper-meta", meta));
+
+  const badges = [];
+  if (paper.source === "upload") badges.push(el("span", "badge", "Uploaded PDF"));
+  const textWarning = textStatusLabel(paper.text_status);
+  if (textWarning) badges.push(el("span", "badge warning", textWarning));
+  if (badges.length > 0) {
+    const badgeLine = el("p", "paper-badges");
+    badgeLine.append(...badges);
+    header.append(badgeLine);
+  }
   card.append(header);
 
   if (paper.abstract) {
@@ -77,8 +100,10 @@ export function renderPaperCard(paper, { actions = [], titleHref = null } = {}) 
   if (paper.url) {
     footer.append(externalLink(paper.source === "arxiv" ? "View on arXiv" : "View paper", paper.url));
   }
-  if (paper.pdf_url) {
-    footer.append(externalLink("PDF", paper.pdf_url));
+  // A saved paper's stored copy is the one its text came from (and the only one for uploads).
+  const pdfHref = paper.has_pdf ? paperPdfUrl(paper.id) : paper.pdf_url;
+  if (pdfHref) {
+    footer.append(externalLink("PDF", pdfHref));
   }
   footer.append(...actions);
   card.append(footer);

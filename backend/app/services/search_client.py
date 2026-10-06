@@ -1,5 +1,6 @@
 """Paper search: arXiv first, OpenAlex as the fallback. Both are normalized into PaperResult."""
 
+import html
 import re
 import threading
 import time
@@ -11,6 +12,7 @@ import httpx
 from app.schemas import PaperResult
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
+ARXIV_ABS_URL = "https://arxiv.org/abs/{}"
 OPENALEX_API_URL = "https://api.openalex.org/works"
 TIMEOUT_SECONDS = 15
 # arXiv asks clients to make at most one request every 3 seconds.
@@ -104,6 +106,43 @@ def search_openalex(query: str, limit: int = 20) -> list[PaperResult]:
     except (ValueError, KeyError) as exc:
         raise SearchError("OpenAlex returned an unexpected response.") from exc
     return [_openalex_work_to_result(work) for work in works]
+
+
+def fetch_arxiv_paper(arxiv_id: str) -> PaperResult | None:
+    """Exact metadata of one arXiv paper, read from the citation_* meta tags of its abs page.
+
+    Abs pages aren't rate-limited like the search API, so this works even while arXiv search is
+    blocked. Returns None if the page can't be fetched or has no title.
+    """
+    try:
+        response = httpx.get(ARXIV_ABS_URL.format(arxiv_id), timeout=TIMEOUT_SECONDS, follow_redirects=True)
+        response.raise_for_status()
+    except httpx.HTTPError:
+        return None
+    tags: dict[str, list[str]] = {}
+    for name, content in re.findall(r'<meta\s+name="citation_(\w+)"\s+content="([^"]*)"', response.text):
+        tags.setdefault(name, []).append(html.unescape(content))
+    title = _clean(tags.get("title", [""])[0])
+    if not title:
+        return None
+    date = tags.get("date", [""])[0]  # submission date of v1, "2017/06/12"
+    abstract = _clean(tags.get("abstract", [""])[0])
+    return PaperResult(
+        source="arxiv",
+        external_id=arxiv_id,
+        title=title,
+        authors=[_first_name_first(author) for author in tags.get("author", [])],
+        year=int(date[:4]) if date[:4].isdigit() else None,
+        abstract=abstract or None,
+        url=ARXIV_ABS_URL.format(arxiv_id),
+        pdf_url=_https(tags.get("pdf_url", [None])[0]),
+    )
+
+
+def _first_name_first(name: str) -> str:
+    """arXiv's meta tags list authors as "Vaswani, Ashish"; the rest of the app uses "Ashish Vaswani"."""
+    last, comma, first = name.partition(", ")
+    return f"{first} {last}" if comma else name
 
 
 def _describe_http_error(source: str, exc: httpx.HTTPError) -> str:

@@ -71,24 +71,39 @@ DONE WHEN: saved papers survive a full app restart.
 ======================================================================
 PHASE 3 -- Feature 3: PDF upload & processing             target: Wed 10/7
 ======================================================================
-[ ] Find a PDF-processing skill (handout suggestion); read its files before installing
+[~] Find a PDF-processing skill (handout suggestion); read its files before installing
     ("toxic skills" warning). The built-in `pdf` skill is an option. Screenshot for the report
-[ ] services/pdf_processor.py: extract full text from a PDF (PyMuPDF)
-[ ] Store PDFs in backend/data/pdfs/, path recorded in the DB
-    (store pdf_path relative to settings.data_path, e.g. "pdfs/12.pdf"; DELETE resolves it that way)
-[ ] services/metadata_extractor.py: title / authors / year / abstract via heuristics
+    (Oct 6: agent loaded the built-in `pdf` skill. It's a general pypdf/pdfplumber guide with
+    nothing on PyMuPDF or paper metadata, so PyMuPDF stayed; its one takeaway: scanned PDFs
+    need OCR -> rejected with a clear message. A third-party skill + screenshot are yours to do)
+[x] services/pdf_processor.py: extract full text from a PDF (PyMuPDF)
+    (ligatures expanded; line-break hyphens rejoined by regex, since PyMuPDF's
+    TEXT_DEHYPHENATE flag had no effect)
+[x] Store PDFs in backend/data/pdfs/, path recorded in the DB
+    (pdf_path is relative to settings.data_path: "pdfs/<uuid>.pdf")
+[x] services/metadata_extractor.py: title / authors / year / abstract via heuristics
     (PDF metadata, largest font on page 1, "Abstract" regex)
     -- LLM-based extraction is added in Phase 4; heuristics stay as the fallback
-    [ ] (opt) Detect an arXiv ID in the text and fetch metadata from arXiv (no LLM call)
-[ ] POST /api/papers/upload (multipart) -> extract text + metadata -> save
-[ ] Validate: .pdf only, size limit, clear error for scanned PDFs with no text
-[ ] Saving a SEARCH result also downloads its PDF and extracts full text
+    [x] (opt) Detect an arXiv ID in the text and fetch metadata from arXiv (no LLM call)
+        (the rotated "arXiv:ID" margin stamp -> citation_* meta tags of the abs page; the
+        paper is then stored as source "arxiv", so it dedupes against search saves)
+[x] POST /api/papers/upload (multipart) -> extract text + metadata -> save
+    (services/library.py holds the save/upload logic; the same file uploaded twice -> 409)
+[x] Validate: .pdf only, size limit, clear error for scanned PDFs with no text
+    (415 not .pdf, 413 over 25 MB, 422 not a PDF / damaged / password / scanned)
+[x] Saving a SEARCH result also downloads its PDF and extracts full text
     (same pipeline as upload). No PDF available -> abstract only, flagged in UI
-[ ] library.html: upload form (<input type="file" accept=".pdf">) with "processing..." state
-[ ] Uploaded papers render with the same renderPaperCard() as search results
-[ ] (opt) GET /api/papers/{id}/pdf serves the stored PDF -> "Open PDF" link on uploads
-[ ] Test with 3+ different real papers (arXiv, conference, two-column layout)
-[ ] Commit
+    (badge on the card; text_status "failed" when the PDF can't be downloaded or read)
+[x] library.html: upload form (<input type="file" accept=".pdf">) with "processing..." state
+[x] Uploaded papers render with the same renderPaperCard() as search results
+[x] (opt) GET /api/papers/{id}/pdf serves the stored PDF -> "Open PDF" link on uploads
+    (the cards' "PDF" link uses the stored copy whenever has_pdf)
+[~] Test with 3+ different real papers (arXiv, conference, two-column layout)
+    (agent, via the API: "Attention Is All You Need" (arXiv, one column), ResNet (arXiv,
+    two columns), BERT from the ACL Anthology (conference, two columns, no arXiv stamp ->
+    heuristics): title, authors, year and abstract all correct. Still try the upload in
+    the browser, ideally with a non-arXiv PDF or two, since those rely on the heuristics)
+[x] Commit
 DONE WHEN: uploaded papers show reasonable metadata and have full text stored.
 
 ======================================================================

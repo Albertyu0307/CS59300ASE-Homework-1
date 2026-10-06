@@ -40,6 +40,24 @@ nav a[aria-current="page"] {
   color: var(--pico-muted-color);
   font-size: 0.9rem;
 }
+.paper-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0;
+}
+.badge {
+  padding: 0.05rem 0.6rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 1rem;
+  color: var(--pico-muted-color);
+  font-size: 0.8rem;
+}
+.badge.warning {
+  border-color: transparent;
+  background: var(--pico-mark-background-color);
+  color: var(--pico-mark-color);
+}
 .paper-abstract.collapsed {
   display: -webkit-box;
   -webkit-box-orient: vertical;

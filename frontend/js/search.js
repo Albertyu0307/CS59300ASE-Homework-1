@@ -2,7 +2,9 @@
 // The form submits as index.html?q=...&source=..., so on load we read both from the URL and run the search.
 
 import { getHealth, listPapers, savePaper, searchPapers } from "./api.js";
-import { clearStatus, el, paperPageUrl, renderPaperCard, showError, showLoading, showMessage } from "./ui.js";
+import {
+  clearStatus, el, paperPageUrl, renderPaperCard, showError, showLoading, showMessage, textStatusLabel,
+} from "./ui.js";
 
 const SOURCES = ["auto", "openalex"]; // the <select> values; see searchPapers() in api.js
 const SOURCE_STORAGE_KEY = "searchSource";
@@ -36,11 +38,12 @@ function renderSaveControl(paper, savedId) {
   button.addEventListener("click", async () => {
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
-    button.textContent = "Saving...";
+    // The backend downloads the PDF and extracts its text, which takes a few seconds.
+    button.textContent = paper.pdf_url ? "Saving (downloading PDF)..." : "Saving...";
     errorEl.textContent = "";
     try {
       const saved = await savePaper(paper);
-      showSaved(control, saved.id);
+      showSaved(control, saved.id, textStatusLabel(saved.text_status));
     } catch (err) {
       if (err.status === 409) {
         showSaved(control, null); // saved in the meantime, e.g. from another tab
@@ -57,13 +60,15 @@ function renderSaveControl(paper, savedId) {
 }
 
 // Replaces the Save button with a "Saved" marker and a link to the paper (or the library, if the id is unknown).
-function showSaved(control, id) {
+// warning: shown when the paper was saved without its full text (see textStatusLabel).
+function showSaved(control, id, warning = null) {
   const marker = el("button", "save-button secondary", "Saved");
   marker.type = "button";
   marker.disabled = true;
   const link = el("a", null, "Open in library");
   link.href = id == null ? "library.html" : paperPageUrl(id);
   control.replaceChildren(marker, link);
+  if (warning) control.append(el("small", "badge warning", warning));
 }
 
 // The source picked last time, so choosing OpenAlex once makes it the default on later visits.

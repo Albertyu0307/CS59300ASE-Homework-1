@@ -201,8 +201,9 @@ CS59300ASE-Homework-1/
 │   │   │   └── assistant.py     # summary + Q&A endpoints
 │   │   └── services/            # all business logic; routers stay thin
 │   │       ├── __init__.py
-│   │       ├── search_client.py      # arXiv, OpenAlex fallback -> list[PaperResult]
-│   │       ├── pdf_processor.py      # download PDF, save to disk, extract text
+│   │       ├── search_client.py      # arXiv, OpenAlex fallback -> list[PaperResult]; arXiv abs-page lookup
+│   │       ├── library.py            # save a search result / an upload (one PDF pipeline), delete
+│   │       ├── pdf_processor.py      # download PDF, save to disk, extract text (the only PyMuPDF user)
 │   │       ├── metadata_extractor.py # PDF text -> title/authors/year/abstract
 │   │       ├── llm_client.py         # the ONLY module that talks to an LLM (+ mock mode)
 │   │       └── prompts.py            # prompt templates in one place
@@ -235,15 +236,15 @@ Design rule: **routers stay thin, services hold the logic, and `llm_client.py` i
 | Column | Type | Notes |
 |---|---|---|
 | `id` | INTEGER PK | |
-| `source` | TEXT | `arxiv` / `openalex` / `upload` |
-| `external_id` | TEXT NULL | arXiv ID etc. `UNIQUE(source, external_id)` prevents duplicate saves |
+| `source` | TEXT | `arxiv` / `openalex` / `upload`. An uploaded PDF that carries an arXiv ID is stored as `arxiv` |
+| `external_id` | TEXT NULL | arXiv ID, OpenAlex ID, or for uploads the SHA-256 of the file. `UNIQUE(source, external_id)` prevents duplicate saves and repeated uploads |
 | `title` | TEXT | |
 | `authors` | TEXT | JSON array of names |
 | `year` | INTEGER NULL | |
 | `abstract` | TEXT NULL | |
 | `url` | TEXT NULL | Landing page link |
 | `pdf_url` | TEXT NULL | Remote PDF link |
-| `pdf_path` | TEXT NULL | Local file in `data/pdfs/` |
+| `pdf_path` | TEXT NULL | Local file, relative to the data folder: `pdfs/<uuid>.pdf` |
 | `full_text` | TEXT NULL | Extracted text, which feeds the LLM |
 | `text_status` | TEXT | `full` / `abstract_only` / `failed`, shown as a badge in the UI |
 | `summary` | TEXT NULL | Cached LLM summary |
@@ -259,12 +260,12 @@ Design rule: **routers stay thin, services hold the logic, and `llm_client.py` i
 |---|---|---|---|
 | `GET /api/health` | — | `{status:"ok"}` | Walking-skeleton check |
 | `GET /api/search` | `q`, `limit=20`, `source=auto` | `PaperResult[]` | Not saved. `source=auto`: arXiv, with OpenAlex as the fallback; `source=openalex`: OpenAlex only |
-| `POST /api/papers` | `PaperResult` | `PaperOut` | Saves, downloads PDF, extracts text; 409 if already saved |
-| `GET /api/papers` | — | `PaperOut[]` | Library list (no full text, to keep it light) |
+| `POST /api/papers` | `PaperResult` | `PaperOut` | Saves, downloads PDF, extracts text; 409 if already saved. Saved even if the PDF fails (`text_status`) |
+| `GET /api/papers` | — | `PaperOut[]` | Library list (no full text, to keep it light). `PaperOut.has_pdf`: a local copy is stored |
 | `GET /api/papers/{id}` | — | `PaperOut` | |
 | `DELETE /api/papers/{id}` | — | 204 | Also deletes the PDF file |
-| `POST /api/papers/upload` | multipart `file` | `PaperOut` | Extract text + metadata, then save |
-| `GET /api/papers/{id}/pdf` | — | PDF file | (opt) "Open PDF" link for uploads |
+| `POST /api/papers/upload` | multipart `file` | `PaperOut` | Extract text + metadata, then save. 409 already saved, 413 over 25 MB, 415 not `.pdf`, 422 not a PDF / damaged / password-protected / scanned |
+| `GET /api/papers/{id}/pdf` | — | PDF file | The stored copy, shown inline; the cards' "PDF" link uses it when `has_pdf` |
 | `POST /api/papers/{id}/summary` | `?refresh=false` | `{summary}` | Cached after the first call |
 | `POST /api/papers/{id}/ask` | `{question}` | `{answer}` | Appends to chat history |
 | `GET /api/papers/{id}/messages` | — | `ChatMessage[]` | |
@@ -280,7 +281,7 @@ The frontend sends the **whole `PaperResult`** when saving, so the backend doesn
 3. **Metadata extraction for uploads: heuristics first, the LLM added in Phase 4.**
    - Heuristics: PDF metadata fields, the largest-font line on page 1, and a regex for "Abstract".
    - In Phase 4, send the first ~2 pages to the LLM and request JSON `{title, authors[], year, abstract}`. The heuristics remain the fallback when the LLM fails or is rate-limited.
-   - Bonus: if the text contains an arXiv ID, fetch exact metadata from arXiv, which needs no LLM call at all.
+   - Bonus (done in Phase 3): arXiv stamps its ID up the left margin of its PDFs. When that stamp is found, the exact metadata comes from the paper's arXiv abs page (its `citation_*` meta tags), which needs no LLM call. The abs page isn't rate-limited like the search API.
 4. **Synchronous processing is fine.** Upload/save takes a few seconds, so show a spinner. No job queue.
 5. **Free-tier discipline** (see §4): cache summaries, at most one LLM call per action, mock mode, and retries plus a friendly message on 429.
 6. **Q&A prompt layout:** a fixed system instruction, then the paper text, then recent chat history, then the new question.

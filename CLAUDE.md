@@ -35,7 +35,8 @@ No lint or test setup exists yet. Throwaway experiments go in `scratch/` (gitign
 - `routers/` stay thin; `services/` hold the logic.
 - `services/llm_client.py` will be the **only** module that talks to an LLM, configured by `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_MOCK` (mock returns canned text). Rules: cache summaries in the DB, at most one LLM call per user action, retry with backoff on HTTP 429 and then show a friendly message.
 - Search results from any source are normalized to one source-agnostic `PaperResult`.
-- Saving a search result downloads its PDF and runs the **same** text-extraction pipeline as an upload, so every paper has `full_text` (requirement: summaries based on content, not metadata). No PDF → `text_status = abstract_only`. Whole paper text goes in the prompt; no RAG/vector DB.
+- Saving a search result downloads its PDF and runs the **same** text-extraction pipeline as an upload, so every paper has `full_text` (requirement: summaries based on content, not metadata). No PDF → `text_status = abstract_only`; PDF unusable → `failed`. Whole paper text goes in the prompt; no RAG/vector DB.
+- `services/library.py` holds the save/upload/delete logic. `services/pdf_processor.py` is the only PyMuPDF user and hands plain data (`PdfContent`) to `metadata_extractor.py`, whose heuristics are pure Python. Uploads are keyed by the file's SHA-256 (`external_id`); a PDF with arXiv's margin stamp is looked up on its arXiv abs page and stored as `source="arxiv"`.
 
 **Config:** `app/config.py` loads `backend/.env` via pydantic-settings, located relative to the source file, so it works regardless of the working directory. Use `settings.data_path` (absolute), not `settings.data_dir`: a relative `DATA_DIR` is resolved against `backend/`. Runtime data (SQLite DB, PDFs) lives in `backend/data/`, which is gitignored.
 
@@ -45,6 +46,7 @@ No lint or test setup exists yet. Throwaway experiments go in `scratch/` (gitign
 
 - arXiv API (`https://export.arxiv.org/api/query`, Atom XML parsed with feedparser): join query words with AND (`all:graph AND all:neural AND all:networks`). A plain `all:graph neural networks` matches ANY word and returns off-topic results. Keep to ~1 request per 3 s.
 - arXiv blocks an IP for 20+ min with HTTP 429 (`Rate exceeded.`, no `Retry-After`; sometimes only after a 30 s hang) after a handful of requests, even when spaced out. `search_client` therefore caches arXiv results, skips arXiv for 10 min after any failure and falls back to OpenAlex. Test against arXiv sparingly: `GET /api/search?...&source=openalex` (the search page's source picker) never contacts arXiv. arXiv abs pages and PDF downloads are not affected.
+- PyMuPDF 1.28's `TEXT_DEHYPHENATE` flag has no effect on real papers; `pdf_processor` rejoins line-break hyphens with a regex. The arXiv margin stamp is rotated text (`line["dir"] != (1, 0)`), and its date is the latest version's, so the year comes from the ID's YYMM.
 - There are no migrations: `create_db()` (`SQLModel.metadata.create_all`) creates missing tables but never alters existing ones. After changing a column in `models.py`, delete `backend/data/library.db` (a new table such as `chatmessage` is picked up automatically).
 - Windows console output can garble non-ASCII text (e.g. author names); set `PYTHONIOENCODING=utf-8` when printing. The data itself is fine.
 - Existing text files use CRLF and `core.autocrlf=true`; Git's "LF will be replaced by CRLF" warnings are harmless.
