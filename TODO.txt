@@ -25,21 +25,24 @@ PHASE 0 -- Environment & project setup                    target: Mon 10/5
 ======================================================================
 PHASE 1 -- Feature 1: Search for papers                   target: Tue 10/6
 ======================================================================
-[ ] services/search_client.py: call arXiv API, parse Atom XML into a
+[x] services/search_client.py: call arXiv API, parse Atom XML into a
     source-agnostic PaperResult (title, authors, year, abstract, url,
     pdf_url, source, external_id)
     NOTE (Phase 0 smoke test): join the query words with AND ("all:graph AND all:neural
     AND all:networks"). A plain "all:graph neural networks" matches ANY word -> off-topic results
-[ ] Handle timeouts / HTTP errors / empty results; don't hammer arXiv (~1 req / 3 s)
-[ ] routers/search.py: GET /api/search?q=...&limit=...
-[ ] Test the endpoint in FastAPI's /docs page before touching the UI
-[ ] js/api.js: searchPapers()
-[ ] js/ui.js: renderPaperCard() -- title, authors, year, abstract (expand/collapse), link
+[x] Handle timeouts / HTTP errors / empty results; don't hammer arXiv (~1 req / 3 s)
+[x] routers/search.py: GET /api/search?q=...&limit=...
+[~] Test the endpoint in FastAPI's /docs page before touching the UI
+    (agent tested it with curl; still try it yourself in /docs)
+[x] js/api.js: searchPapers()
+[x] js/ui.js: renderPaperCard() -- title, authors, year, abstract (expand/collapse), link
     (insert text with textContent, never innerHTML)
-[ ] index.html + js/search.js: search form, results list
-[ ] Loading / error / "no results" states
-[ ] (opt) Second provider: Semantic Scholar, selectable in the UI
-[ ] Commit
+[x] index.html + js/search.js: search form, results list
+[x] Loading / error / "no results" states
+[x] Fallback provider: OpenAlex (free, no key) when arXiv fails. arXiv blocks IPs for
+    20+ min with HTTP 429 (Oct 6); Semantic Scholar keyless was 429ing too. arXiv results
+    are cached 1 h, and arXiv is skipped for 10 min after a failure
+[x] Commit
 DONE WHEN: searching "graph neural networks" shows real papers with all five fields.
 
 ======================================================================

@@ -20,3 +20,8 @@ async function request(path, options = {}) {
 export function getHealth() {
   return request("/api/health");
 }
+
+export function searchPapers(query, limit = 20) {
+  const params = new URLSearchParams({ q: query, limit });
+  return request(`/api/search?${params}`);
+}

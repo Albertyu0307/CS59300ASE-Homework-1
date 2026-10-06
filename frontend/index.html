@@ -10,8 +10,9 @@
 <body>
   <header class="container">
     <nav>
-      <ul><li><strong>AI Research Assistant</strong></li></ul>
+      <ul><li><a href="index.html" class="brand"><strong>AI Research Assistant</strong></a></li></ul>
       <ul>
+        <li><a href="index.html">Home</a></li>
         <li><a href="index.html" aria-current="page">Search</a></li>
         <li><a href="library.html">Library</a></li>
       </ul>
@@ -20,7 +21,13 @@
 
   <main class="container">
     <h1>Search papers</h1>
-    <!-- Phase 1: search form + results list -->
+    <!-- Submits as index.html?q=..., so results survive a refresh and the back button works. -->
+    <form id="search-form" role="search" action="index.html" method="get">
+      <input type="search" name="q" id="search-input" placeholder="e.g. graph neural networks"
+             aria-label="Search arXiv papers" required maxlength="300">
+      <button type="submit">Search</button>
+    </form>
+    <p id="status" class="status" role="status" hidden></p>
     <section id="results"></section>
   </main>
 

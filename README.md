@@ -14,7 +14,7 @@ One Python program: a **FastAPI** backend that serves both the JSON API (`/api/.
 |---|---|
 | Backend | Python, FastAPI, Uvicorn |
 | Database | SQLite (a single file in `backend/data/`) |
-| Paper search | arXiv API (free, no key) |
+| Paper search | arXiv API, with OpenAlex as the fallback when arXiv is rate-limiting (both free, no key) |
 | PDF processing | PyMuPDF |
 | Frontend | Plain HTML, CSS and JavaScript; Pico.css, marked and DOMPurify loaded from a CDN |
 
@@ -103,7 +103,16 @@ cp .env.example .env
 
 ## Running the app
 
-From the `backend` folder, with the virtual environment activated. In a new terminal, activate it again first (step 4; on Windows with Option B, step 3 too):
+**Windows (PowerShell), copy-paste:** paste this whole block into any PowerShell window and press Enter. It uses Option B from step 3, so it works in every new window. The first line assumes the repository was cloned to your Desktop; if it is somewhere else, change that path.
+
+```powershell
+Set-Location "$HOME\Desktop\CS59300ASE-Homework-1\backend"
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload
+```
+
+**Manually:** from the `backend` folder, with the virtual environment activated. In a new terminal, activate it again first (step 4; on Windows with Option B, step 3 too):
 
 ```
 uvicorn app.main:app --reload

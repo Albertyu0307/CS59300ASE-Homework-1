@@ -3,3 +3,55 @@
 nav a[aria-current="page"] {
   font-weight: bold;
 }
+
+/* Search form: Pico joins input + button in a role="search" form; keep the button narrow. */
+#search-form button {
+  flex: none;
+  width: auto;
+  padding-inline: 2rem;
+}
+
+/* Loading / error / "no results" line. */
+.status.error {
+  color: var(--pico-del-color);
+}
+
+/* Paper card (renderPaperCard in js/ui.js). */
+.paper-card header {
+  margin-bottom: 0.75rem;
+}
+.paper-title {
+  margin-bottom: 0.25rem;
+  font-size: 1.15rem;
+}
+.paper-meta,
+.muted {
+  margin-bottom: 0;
+  color: var(--pico-muted-color);
+  font-size: 0.9rem;
+}
+.paper-abstract.collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.toggle-abstract {
+  width: auto;
+  padding: 0.2rem 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+.paper-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* The site title doubles as a link to the home (search) page. */
+nav a.brand {
+  color: inherit;
+  text-decoration: none;
+}

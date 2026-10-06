@@ -69,7 +69,7 @@ All LLM and external-API calls go through the backend. The browser never sees an
 | Backend language | **Python 3.13** (installed: 3.13.15) | Best PDF and LLM libraries; least code for this kind of app |
 | Web framework | **FastAPI** + Uvicorn | Auto-generated `/docs` page lets you test every endpoint before the UI exists; Pydantic validation; built-in file upload; can serve the static frontend |
 | Database | **SQLite** via **SQLModel** | One file, zero setup, meets the persistence requirement. SQLModel (SQLAlchemy + Pydantic) keeps models short |
-| Paper search API | **arXiv API** (primary); Semantic Scholar (optional 2nd source) | Free, **no key**, and **every result has a PDF**, which makes requirement 4 (content-based summary) easy |
+| Paper search API | **arXiv API** (primary); **OpenAlex** (fallback) | arXiv: free, **no key**, and **every result has a PDF**, which makes requirement 4 (content-based summary) easy. But since 2026 arXiv blocks an IP for 20+ min with HTTP 429 after a handful of requests, so search falls back to OpenAlex (free, no key, generous limits; not every result has a PDF). Semantic Scholar's keyless API was also returning 429 |
 | HTTP client | `httpx` | Clean API, timeouts |
 | arXiv XML parsing | `feedparser` | arXiv returns Atom XML |
 | PDF processing | **PyMuPDF** (`pymupdf`) | Fast, accurate text, and font-size info (useful for title heuristics). AGPL license is fine for coursework; `pypdf` is the permissive fallback |
@@ -201,7 +201,7 @@ CS59300ASE-Homework-1/
 │   │   │   └── assistant.py     # summary + Q&A endpoints
 │   │   └── services/            # all business logic; routers stay thin
 │   │       ├── __init__.py
-│   │       ├── search_client.py      # arXiv (+ optional Semantic Scholar) -> list[PaperResult]
+│   │       ├── search_client.py      # arXiv, OpenAlex fallback -> list[PaperResult]
 │   │       ├── pdf_processor.py      # download PDF, save to disk, extract text
 │   │       ├── metadata_extractor.py # PDF text -> title/authors/year/abstract
 │   │       ├── llm_client.py         # the ONLY module that talks to an LLM (+ mock mode)
@@ -235,7 +235,7 @@ Design rule: **routers stay thin, services hold the logic, and `llm_client.py` i
 | Column | Type | Notes |
 |---|---|---|
 | `id` | INTEGER PK | |
-| `source` | TEXT | `arxiv` / `semantic_scholar` / `upload` |
+| `source` | TEXT | `arxiv` / `openalex` / `upload` |
 | `external_id` | TEXT NULL | arXiv ID etc. `UNIQUE(source, external_id)` prevents duplicate saves |
 | `title` | TEXT | |
 | `authors` | TEXT | JSON array of names |
@@ -284,7 +284,7 @@ The frontend sends the **whole `PaperResult`** when saving, so the backend doesn
 4. **Synchronous processing is fine.** Upload/save takes a few seconds, so show a spinner. No job queue.
 5. **Free-tier discipline** (see §4): cache summaries, at most one LLM call per action, mock mode, and retries plus a friendly message on 429.
 6. **Q&A prompt layout:** a fixed system instruction, then the paper text, then recent chat history, then the new question.
-7. **Keep the search layer source-agnostic.** Everything becomes a `PaperResult`, so adding Semantic Scholar later is one more function and no other code changes.
+7. **Keep the search layer source-agnostic.** Everything becomes a `PaperResult`, so adding the OpenAlex fallback was one more function and no other code changes.
 8. **Secrets:** any key goes in `backend/.env` (gitignored), and `backend/.env.example` is committed with blank values. The backend gives a clear message if a required key is missing.
 9. **Fallback for bad PDFs:** if text extraction yields almost nothing (a scanned PDF), some providers (e.g. Gemini) accept the PDF file directly. Keep this as a fallback only; extracting text ourselves is visibly the "PDF processing" the rubric asks for.
 
