@@ -4,7 +4,7 @@ CS 59300 ASE, Homework 1. Author: Albert Yu
 
 A web app for working with research papers: search arXiv, save papers to a local library, upload your own PDFs, and get an LLM-generated summary of a paper and answers to questions about it.
 
-> **Status:** work in progress. The project skeleton runs; features are being added phase by phase (see [TODO.txt](TODO.txt)).
+> **Status:** all five features work (search, library, PDF upload, LLM summary, Q&A); polish and the final README are in progress (see [TODO.txt](TODO.txt)).
 
 ## Architecture
 
@@ -16,7 +16,8 @@ One Python program: a **FastAPI** backend that serves both the JSON API (`/api/.
 | Database | SQLite (a single file in `backend/data/`) |
 | Paper search | arXiv API, with OpenAlex as the fallback when arXiv is rate-limiting (both free, no key). The search page can also be set to use OpenAlex only |
 | PDF processing | PyMuPDF |
-| Frontend | Plain HTML, CSS and JavaScript; Pico.css, marked and DOMPurify loaded from a CDN |
+| LLM | Google Gemini (free tier, `gemini-3.5-flash-lite`) through its OpenAI-compatible API; any OpenAI-compatible provider can be configured instead |
+| Frontend | Plain HTML, CSS and JavaScript; Pico.css, marked, KaTeX and DOMPurify loaded from a CDN |
 
 The design and its reasoning are in [PLAN.md](PLAN.md).
 
@@ -26,9 +27,8 @@ The design and its reasoning are in [PLAN.md](PLAN.md).
   - Windows: install from [python.org](https://www.python.org/downloads/) or with `winget install Python.Python.3.13`.
   - Debian/Ubuntu: also install the venv module: `sudo apt install python3-venv`.
 - **Git**
-- An internet connection (the app calls arXiv, and the pages load their CSS/JS libraries from a CDN).
-
-No API key is needed to run the app.
+- An internet connection (the app calls arXiv and Gemini, and the pages load their CSS/JS libraries from a CDN).
+- A free **Gemini API key** for the LLM features (summary, questions, metadata of uploaded PDFs); [Configuration](#configuration) says how to get one. Without a key the app still runs, with canned placeholder answers.
 
 ## Setup (once)
 
@@ -90,7 +90,7 @@ Your prompt now starts with `(.venv)`.
 pip install -r requirements.txt
 ```
 
-**6. Create your settings file** (optional for now: the defaults run the app without an LLM)
+**6. Create your settings file**, then add a free Gemini API key to it (see [Configuration](#configuration)). Without a key the app still runs, but summaries and answers are canned placeholder text.
 
 ```powershell
 # Windows
@@ -130,13 +130,22 @@ Settings are read from `backend/.env` (created in setup step 6). Every setting h
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `LLM_BASE_URL` | empty | LLM API endpoint (provider to be chosen; any OpenAI-compatible endpoint) |
-| `LLM_API_KEY` | empty | API key, if the provider needs one |
-| `LLM_MODEL` | empty | Model name |
-| `LLM_MOCK` | `true` | `true` returns canned text instead of calling an LLM, so no key is needed |
+| `LLM_BASE_URL` | Gemini's OpenAI-compatible endpoint | LLM API endpoint; any OpenAI-compatible endpoint works |
+| `LLM_API_KEY` | empty | API key (see below) |
+| `LLM_MODEL` | `gemini-3.5-flash-lite` | Model name |
+| `LLM_MOCK` | `true` | `true` returns canned text instead of calling an LLM, so no key is needed. Set it to `false` once you have a key |
+| `LLM_MAX_PAPER_CHARS` | `200000` | Longer paper texts are cut to this many characters before they go to the LLM; the paper page says when that happens |
 | `DATA_DIR` | `./data` | Where the database and PDFs are stored, relative to `backend/` |
 
-`.env` is ignored by Git. Never commit a real API key; `.env.example` lists the variables without values.
+`.env` is ignored by Git. Never commit a real API key; `.env.example` lists the variables without a key.
+
+**Getting a free Gemini API key** (needed for summaries, questions and LLM metadata extraction):
+
+1. Go to https://aistudio.google.com and sign in with a Google account.
+2. Click **Get API key** and create a key in a project **without billing enabled**. Then it can't cost anything: when the free quota runs out, the app shows "LLM rate limit reached" instead.
+3. In `backend/.env`, set `LLM_API_KEY=` to the key and `LLM_MOCK=false`, then restart the server.
+
+On Gemini's free tier, Google may use prompts to improve its products, so don't upload confidential papers.
 
 ## Project structure
 

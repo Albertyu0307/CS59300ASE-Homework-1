@@ -109,34 +109,55 @@ DONE WHEN: uploaded papers show reasonable metadata and have full text stored.
 ======================================================================
 PHASE 4 -- Features 4 & 5: LLM summary + Q&A              target: Thu 10/8
 ======================================================================
-[ ] DECIDE THE LLM PROVIDER (PLAN.md section 4):
-    [ ] Retest OVHcloud keyless with requests spaced ~1 min apart: how often do they succeed?
+[x] DECIDE THE LLM PROVIDER (PLAN.md section 4): Gemini free tier, gemini-3.5-flash-lite
+    [x] Retest OVHcloud keyless with requests spaced ~1 min apart: how often do they succeed?
         (Oct 5 test: 8 of 9 paper-sized requests got HTTP 429; the one that
         succeeded answered correctly in 5.4 s -> works, but heavily throttled)
-    [ ] If keyless doesn't work: free Gemini key (billing NOT enabled) in backend/.env
-    [ ] Smoke test the chosen provider from a scratch script
-[ ] services/llm_client.py: the only module that talks to an LLM;
+        (Oct 7 retest, scratch/ovh_retest.py: 0 of 7 succeeded, 60 s apart. The 2 req/min quota
+        was already used up at every request, so it's shared with other anonymous users -> unusable)
+    [x] If keyless doesn't work: free Gemini key (billing NOT enabled) in backend/.env
+    [x] Smoke test the chosen provider from a scratch script
+        (scratch/gemini_smoke.py, the app's summary prompt on BERT: 3.5-flash-lite 3.1 s, 3.5-flash
+        11.9 s with a bit more detail, 3.8-flash HTTP 503 "high demand" -> flash-lite)
+[x] services/llm_client.py: the only module that talks to an LLM;
     LLM_BASE_URL / LLM_API_KEY / LLM_MODEL from .env
-[ ] LLM_MOCK=true mode: return canned text, no API call (build the UI without using quota)
-[ ] On HTTP 429: retry with backoff, then "LLM rate limit reached, try again shortly"
-[ ] services/prompts.py: summary, Q&A, and metadata-extraction prompts
-[ ] POST /api/papers/{id}/summary  -> summary from FULL TEXT, cached in DB,
+    (OpenAI-style chat completions over httpx. Gemini has an OpenAI-compatible endpoint too,
+    so switching providers only means editing .env; no provider SDK needed)
+[x] LLM_MOCK=true mode: return canned text, no API call (build the UI without using quota)
+[x] On HTTP 429: retry with backoff, then "LLM rate limit reached, try again shortly"
+    (waits 3 / 8 / 20 s, or the provider's Retry-After / Gemini "retryDelay" when it's under 30 s;
+    5xx is retried the same way. Gemini's daily quota used up -> no retries, "try again tomorrow".
+    Agent tested every error path with a faked httpx.post)
+[x] services/prompts.py: summary, Q&A, and metadata-extraction prompts
+[x] POST /api/papers/{id}/summary  -> summary from FULL TEXT, cached in DB,
     ?refresh=true regenerates
-[ ] POST /api/papers/{id}/ask {question} -> answer grounded in the full text
-[ ] chatmessage table; GET /api/papers/{id}/messages returns history
+    (+ GET /api/papers/{id}/summary: the cached summary and what text the LLM sees, no LLM call)
+[x] POST /api/papers/{id}/ask {question} -> answer grounded in the full text
+    (the last 3 questions + answers go along, so follow-up questions work)
+[x] chatmessage table; GET /api/papers/{id}/messages returns history
     (DELETE /api/papers/{id} must then delete the paper's messages too)
-[ ] Very long papers: cap the text and tell the user when it was cut
-[ ] metadata_extractor: add LLM extraction (first ~2 pages -> JSON); heuristics as fallback
-[ ] paper.html + js/paper.js: metadata, Summary section, chat section
-[ ] Render LLM output as Markdown (marked -> DOMPurify -> innerHTML)
-[ ] Quick-question buttons (the 5 example questions from the handout)
-[ ] Friendly errors: missing key, rate limit, paper has no text
+[x] Very long papers: cap the text and tell the user when it was cut
+    (LLM_MAX_PAPER_CHARS, default 200,000 characters; a note on the paper page)
+[x] metadata_extractor: add LLM extraction (first ~2 pages -> JSON); heuristics as fallback
+    (uploads without an arXiv stamp only, one LLM call, ~1.5 s; per field, the LLM's value wins
+    when it looks plausible. Agent tested BERT (ACL) and ResNet (CVPR): all fields correct. The
+    year heuristic now also reads the PDF's subject field ("2016 IEEE Conference on ..."))
+[x] paper.html + js/paper.js: metadata, Summary section, chat section
+    (agent tested it in mock mode in headless Edge: cached summary, history and Markdown
+    render. Clicking Summarize / Ask / the quick questions is still yours to try)
+[x] Render LLM output as Markdown (marked -> DOMPurify -> innerHTML)
+    (+ KaTeX math: Gemini writes LaTeX even when told not to; agent checked it renders in Edge)
+[x] Quick-question buttons (the 5 example questions from the handout)
+[x] Friendly errors: missing key, rate limit, paper has no text
 [ ] (opt) Scanned PDFs (almost no extracted text): send the PDF file itself to the
     LLM if the provider accepts files (e.g. Gemini) -- fallback only
 [ ] (opt) Stream answers token-by-token (SSE)
-[ ] Commit
+[x] Commit
 DONE WHEN: the summary mentions method/results details that are NOT in the
 abstract, and all 5 example questions get sensible answers.
+(Oct 7, agent via the API with Gemini on BERT: the summary has the 80/10/10 masking, model sizes,
+NER and SQuAD EM scores; all 5 questions answered correctly in 2-7 s. An abstract-only paper says
+when the abstract lacks the answer. Still yours: click through paper.html in the browser)
 
 ======================================================================
 PHASE 5 -- Polish, README, deployment                     target: Fri 10/9

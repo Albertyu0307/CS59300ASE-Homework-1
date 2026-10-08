@@ -31,3 +31,13 @@ class Paper(SQLModel, table=True):
     text_status: str = "abstract_only"  # "full", "abstract_only" or "failed"
     summary: str | None = None  # cached LLM summary (Phase 4)
     created_at: datetime = Field(default_factory=_utc_now)
+
+
+class ChatMessage(SQLModel, table=True):
+    """One question or answer in a paper's Q&A history."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    paper_id: int = Field(foreign_key="paper.id", index=True)  # deleted along with the paper (library.delete_paper)
+    role: str  # "user" or "assistant"
+    content: str  # assistant replies are Markdown
+    created_at: datetime = Field(default_factory=_utc_now)

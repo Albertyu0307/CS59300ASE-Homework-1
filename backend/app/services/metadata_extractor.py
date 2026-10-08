@@ -3,17 +3,25 @@
 - Title: the largest font in the top half of page 1; the PDF's title field as the fallback.
 - Authors: the PDF's author field if it holds real names, else name-like lines between the
   title and "Abstract" (emails and affiliations filtered out). The weakest heuristic.
-- Year: the arXiv ID stamped in the margin, a "Proceedings ... 2019"-style header, or the file's creation date.
+- Year: the arXiv ID stamped in the margin, a "Proceedings ... 2019"-style header on page 1 or in the
+  PDF's subject field, or the file's creation date.
 - Abstract: the text between an "Abstract" heading and "Introduction"/"Keywords".
-Phase 4 adds LLM extraction; these heuristics stay as the fallback.
+
+improve_with_llm() then asks the LLM for the same fields (one call); the heuristic values stay as
+the fallback for anything it doesn't get right.
 """
 
+import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import PurePath
 
+from app.services import llm_client, prompts
+from app.services.llm_client import LLMError
 from app.services.pdf_processor import PdfContent, TextLine
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -27,6 +35,9 @@ class PaperMetadata:
 
 MAX_ABSTRACT_CHARS = 3000
 MAX_AUTHORS = 50
+# The start of the text sent to the LLM: about two pages, which hold the title, authors, abstract
+# and any venue header.
+LLM_INPUT_CHARS = 8000
 
 # New-style IDs only (YYMM.NNNNN). The stamp's date is the latest version's, but the ID's YYMM
 # is the original submission month, so the year comes from the ID.
@@ -71,6 +82,34 @@ def extract_metadata(content: PdfContent, filename: str) -> PaperMetadata:
         year=_year(content, lines, arxiv_id),
         abstract=_abstract(content.text),
         arxiv_id=arxiv_id,
+    )
+
+
+def improve_with_llm(content: PdfContent, meta: PaperMetadata) -> PaperMetadata:
+    """Ask the LLM for the metadata; each field it returns in a plausible form replaces the heuristic one.
+
+    Keeps the heuristic values when the LLM call fails (e.g. rate-limited); mock mode returns no fields.
+    One quick retry at most, since the user is waiting for the upload.
+    """
+    try:
+        data = llm_client.chat_json(prompts.metadata_messages(content.text[:LLM_INPUT_CHARS]), retries=1)
+    except LLMError as exc:
+        log.warning("LLM metadata extraction failed, using the heuristics: %s", exc)
+        return meta
+
+    title = _clean(str(data.get("title") or ""))
+    authors = data.get("authors")
+    names = [_clean(str(name)) for name in authors] if isinstance(authors, list) else []
+    names = list(dict.fromkeys(name for name in names if 0 < len(name) <= 100))  # drop blanks and duplicates
+    year = data.get("year")
+    year = int(year) if isinstance(year, int) or (isinstance(year, str) and year.isdigit()) else None
+    abstract = _tidy_abstract(str(data.get("abstract") or ""))
+    return replace(
+        meta,
+        title=title if _plausible_title(title) else meta.title,
+        authors=names[:MAX_AUTHORS] or meta.authors,
+        year=year if year and 1900 < year <= date.today().year + 1 else meta.year,
+        abstract=abstract or meta.abstract,
     )
 
 
@@ -141,6 +180,10 @@ def _year(content: PdfContent, lines: list[TextLine], arxiv_id: str | None) -> i
     if match := _HEADER_YEAR.search(" ".join(line.text for line in lines)):
         if 1900 < (year := int(match.group(1))) <= latest:
             return year
+    # Publishers often put the venue in the subject field: "2016 IEEE Conference on Computer Vision ..."
+    if match := re.search(r"\b((?:19|20)\d{2})\b", content.info.get("subject", "")):
+        if 1900 < (year := int(match.group(1))) <= latest:
+            return year
     # Document info dates look like "D:20190429173603Z".
     if match := re.match(r"D:((?:19|20)\d{2})", content.info.get("creationDate", "")):
         if (year := int(match.group(1))) <= latest:
@@ -156,7 +199,12 @@ def _abstract(text: str) -> str | None:
     body = head[start.end() :]
     if end := _ABSTRACT_END.search(body):
         body = body[: end.start()]
-    abstract = _clean(body)
+    return _tidy_abstract(body)
+
+
+def _tidy_abstract(text: str) -> str | None:
+    """Whitespace normalized and capped at MAX_ABSTRACT_CHARS; None if too short to be an abstract."""
+    abstract = _clean(text)
     if len(abstract) > MAX_ABSTRACT_CHARS:
         # No end marker found nearby: keep whole sentences up to the limit.
         cut = abstract.rfind(". ", 0, MAX_ABSTRACT_CHARS)

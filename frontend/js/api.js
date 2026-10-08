@@ -65,3 +65,24 @@ export function getPaper(id) {
 export function deletePaper(id) {
   return request(`/api/papers/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
+
+// LLM features of a saved paper. getSummary never calls the LLM: it returns the cached summary
+// (null if none yet) plus based_on ("full_text" / "abstract" / "none") and truncated.
+export function getSummary(id) {
+  return request(`/api/papers/${encodeURIComponent(id)}/summary`);
+}
+
+// Generates the summary (or returns the cached one); refresh: true generates a new one.
+export function generateSummary(id, { refresh = false } = {}) {
+  return request(`/api/papers/${encodeURIComponent(id)}/summary?refresh=${refresh}`, { method: "POST" });
+}
+
+// Returns { answer } (Markdown). The question and answer are added to the paper's chat history.
+export function askQuestion(id, question) {
+  return postJson(`/api/papers/${encodeURIComponent(id)}/ask`, { question });
+}
+
+// The paper's chat history, oldest first: [{ id, role: "user" | "assistant", content, created_at }].
+export function getMessages(id) {
+  return request(`/api/papers/${encodeURIComponent(id)}/messages`);
+}

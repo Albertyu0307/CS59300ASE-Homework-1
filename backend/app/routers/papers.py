@@ -59,13 +59,13 @@ def list_papers(session: SessionDep) -> list[Paper]:
 
 @router.get("/papers/{paper_id}", response_model=PaperOut)
 def get_paper(paper_id: int, session: SessionDep) -> Paper:
-    return _get_or_404(session, paper_id)
+    return get_paper_or_404(session, paper_id)
 
 
 @router.get("/papers/{paper_id}/pdf", response_class=FileResponse)
 def get_paper_pdf(paper_id: int, session: SessionDep) -> FileResponse:
     """The stored copy of the paper's PDF, shown in the browser (no download prompt)."""
-    paper = _get_or_404(session, paper_id)
+    paper = get_paper_or_404(session, paper_id)
     path = pdf_processor.pdf_file(paper.pdf_path) if paper.pdf_path else None
     if path is None or not path.is_file():
         raise HTTPException(status_code=404, detail="No PDF is stored for this paper.")
@@ -75,10 +75,10 @@ def get_paper_pdf(paper_id: int, session: SessionDep) -> FileResponse:
 @router.delete("/papers/{paper_id}", status_code=204)
 def delete_paper(paper_id: int, session: SessionDep) -> None:
     """Remove a paper and its stored PDF, if it has one."""
-    library.delete_paper(session, _get_or_404(session, paper_id))
+    library.delete_paper(session, get_paper_or_404(session, paper_id))
 
 
-def _get_or_404(session: Session, paper_id: int) -> Paper:
+def get_paper_or_404(session: Session, paper_id: int) -> Paper:
     paper = session.get(Paper, paper_id)
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found. It may have been deleted.")

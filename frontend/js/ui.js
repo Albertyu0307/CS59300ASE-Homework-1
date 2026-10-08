@@ -111,6 +111,25 @@ export function renderPaperCard(paper, { actions = [], titleHref = null } = {}) 
   return card;
 }
 
+let mathEnabled = false;
+
+// Renders LLM output (Markdown) into target. marked turns it into HTML, with math between $ signs
+// rendered by KaTeX, and DOMPurify strips anything unsafe from that HTML. All of them are global
+// <script>s loaded by the pages that show LLM output.
+export function renderMarkdown(target, markdown) {
+  if (window.marked && window.DOMPurify) {
+    if (!mathEnabled && window.katex && window.markedKatex) {
+      // nonStandard: also accept math directly followed by text, as in "($O(n^2)$)".
+      // throwOnError: false shows malformed LaTeX as its source instead of failing.
+      marked.use(markedKatex({ nonStandard: true, throwOnError: false }));
+      mathEnabled = true;
+    }
+    target.innerHTML = DOMPurify.sanitize(marked.parse(markdown));
+  } else {
+    target.textContent = markdown; // the CDN scripts didn't load: show the raw text
+  }
+}
+
 // Status helpers: each takes the element that shows the page's status line.
 export function showLoading(statusEl, message = "Loading...") {
   statusEl.hidden = false;

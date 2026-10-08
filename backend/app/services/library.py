@@ -9,7 +9,7 @@ import hashlib
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.models import Paper
+from app.models import ChatMessage, Paper
 from app.schemas import PaperResult
 from app.services import metadata_extractor, pdf_processor, search_client
 from app.services.pdf_processor import PdfError
@@ -52,17 +52,20 @@ def save_upload(session: Session, filename: str, data: bytes) -> Paper:
     arxiv = search_client.fetch_arxiv_paper(meta.arxiv_id) if meta.arxiv_id else None
     if arxiv:
         paper = Paper(**arxiv.model_dump())
+        _ensure_not_saved(session, paper.source, paper.external_id)
     else:
         # Keyed by the file's hash, so uploading the same file twice is refused like a repeated save.
+        external_id = hashlib.sha256(data).hexdigest()
+        _ensure_not_saved(session, "upload", external_id)  # before spending an LLM call
+        meta = metadata_extractor.improve_with_llm(content, meta)
         paper = Paper(
             source="upload",
-            external_id=hashlib.sha256(data).hexdigest(),
+            external_id=external_id,
             title=meta.title,
             authors=meta.authors,
             year=meta.year,
             abstract=meta.abstract,
         )
-    _ensure_not_saved(session, paper.source, paper.external_id)
     paper.full_text = content.text
     paper.text_status = "full"
     paper.pdf_path = pdf_processor.store_pdf(data)
@@ -70,8 +73,11 @@ def save_upload(session: Session, filename: str, data: bytes) -> Paper:
 
 
 def delete_paper(session: Session, paper: Paper) -> None:
-    """Remove a paper and its stored PDF, if it has one."""
+    """Remove a paper, its chat history and its stored PDF, if it has one."""
     pdf_path = paper.pdf_path
+    # SQLite doesn't enforce foreign keys by default, so the messages are deleted explicitly.
+    for message in session.exec(select(ChatMessage).where(ChatMessage.paper_id == paper.id)):
+        session.delete(message)
     session.delete(paper)
     session.commit()
     if pdf_path:

@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import BACKEND_DIR
 from app.database import create_db
-from app.routers import papers, search
+from app.routers import assistant, papers, search
 
 FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
 
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="AI Research Assistant", lifespan=lifespan)
 app.include_router(search.router)
 app.include_router(papers.router)
+app.include_router(assistant.router)
 
 
 @app.get("/api/health")

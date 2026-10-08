@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 CS 59300 ASE Homework 1: an AI research assistant (search arXiv, save papers to a local library, upload PDFs, LLM summary and Q&A about a paper). Due Sat Oct 10, 2026.
 
 - **PLAN.md** is the design (architecture, data model in §7, API contract in §8, design decisions in §9). **TODO.txt** is the task tracker. Work one phase / TODO block at a time and tick items (`[x]`) as they are finished.
-- Hard constraints: **total cost $0**; frontend is **plain HTML/CSS/JS** (ES modules, no React/TypeScript/npm/build step). The LLM provider is undecided until Phase 4 (PLAN.md §4).
+- Hard constraints: **total cost $0**; frontend is **plain HTML/CSS/JS** (ES modules, no React/TypeScript/npm/build step). The LLM is Gemini's free tier (`gemini-3.5-flash-lite`) through its OpenAI-compatible endpoint (PLAN.md §4); the key lives only in the gitignored `backend/.env`.
 - Tests are out of scope for HW1 (HW2 builds on `backend/tests/`).
 
 ## Commands
@@ -33,14 +33,15 @@ No lint or test setup exists yet. Throwaway experiments go in `scratch/` (gitign
 
 **Backend layering** (target layout in PLAN.md §6; modules are added phase by phase):
 - `routers/` stay thin; `services/` hold the logic.
-- `services/llm_client.py` will be the **only** module that talks to an LLM, configured by `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_MOCK` (mock returns canned text). Rules: cache summaries in the DB, at most one LLM call per user action, retry with backoff on HTTP 429 and then show a friendly message.
+- `services/llm_client.py` is the **only** module that talks to an LLM: OpenAI-style `/chat/completions` over `httpx` (no SDK), configured by `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_MOCK` (mock returns canned text; `chat_json()` returns `{}`). It retries 429/5xx with backoff, then raises `LLMError` subclasses with user-facing messages, which `routers/assistant.py` maps to 429 / 502 / 503. Rules: cache summaries in the DB, at most one LLM call per user action.
+- `services/assistant.py` holds summary (cached in `Paper.summary`) and Q&A (`chatmessage` rows, last 6 sent as history); `services/prompts.py` holds every prompt. The paper text goes in the system message, cut at `LLM_MAX_PAPER_CHARS`. Uploads without an arXiv stamp get one LLM metadata call (`metadata_extractor.improve_with_llm`); the heuristics fill any field it gets wrong.
 - Search results from any source are normalized to one source-agnostic `PaperResult`.
 - Saving a search result downloads its PDF and runs the **same** text-extraction pipeline as an upload, so every paper has `full_text` (requirement: summaries based on content, not metadata). No PDF → `text_status = abstract_only`; PDF unusable → `failed`. Whole paper text goes in the prompt; no RAG/vector DB.
 - `services/library.py` holds the save/upload/delete logic. `services/pdf_processor.py` is the only PyMuPDF user and hands plain data (`PdfContent`) to `metadata_extractor.py`, whose heuristics are pure Python. Uploads are keyed by the file's SHA-256 (`external_id`); a PDF with arXiv's margin stamp is looked up on its arXiv abs page and stored as `source="arxiv"`.
 
 **Config:** `app/config.py` loads `backend/.env` via pydantic-settings, located relative to the source file, so it works regardless of the working directory. Use `settings.data_path` (absolute), not `settings.data_dir`: a relative `DATA_DIR` is resolved against `backend/`. Runtime data (SQLite DB, PDFs) lives in `backend/data/`, which is gitignored.
 
-**Frontend:** one HTML page per screen (`index.html` search, `library.html`, `paper.html?id=N`), each with its own script in `js/`. `js/api.js` holds one wrapper per endpoint over a shared `request()` that throws an `Error` carrying the backend's `detail`. `js/ui.js` holds shared rendering (`renderPaperCard()` is the reusable "component"). Insert paper data with `textContent`, never `innerHTML`; LLM Markdown is rendered with marked and then sanitized with DOMPurify. Pico.css, marked and DOMPurify come from jsDelivr with pinned versions; marked v18 has no `marked.min.js`, so use `lib/marked.umd.js`.
+**Frontend:** one HTML page per screen (`index.html` search, `library.html`, `paper.html?id=N`), each with its own script in `js/`. `js/api.js` holds one wrapper per endpoint over a shared `request()` that throws an `Error` carrying the backend's `detail`. `js/ui.js` holds shared rendering (`renderPaperCard()` is the reusable "component"). Insert paper data with `textContent`, never `innerHTML`; LLM Markdown is rendered with marked (math via KaTeX + `marked-katex-extension`, `nonStandard: true` so `($x$)` works) and then sanitized with DOMPurify, in `renderMarkdown()`. Pico.css, marked, KaTeX and DOMPurify come from jsDelivr with pinned versions; marked v18 has no `marked.min.js`, so use `lib/marked.umd.js`. `marked-katex-extension` 5.1.x needs KaTeX < 0.19.
 
 ## Gotchas
 
@@ -48,5 +49,7 @@ No lint or test setup exists yet. Throwaway experiments go in `scratch/` (gitign
 - arXiv blocks an IP for 20+ min with HTTP 429 (`Rate exceeded.`, no `Retry-After`; sometimes only after a 30 s hang) after a handful of requests, even when spaced out. `search_client` therefore caches arXiv results, skips arXiv for 10 min after any failure and falls back to OpenAlex. Test against arXiv sparingly: `GET /api/search?...&source=openalex` (the search page's source picker) never contacts arXiv. arXiv abs pages and PDF downloads are not affected.
 - PyMuPDF 1.28's `TEXT_DEHYPHENATE` flag has no effect on real papers; `pdf_processor` rejoins line-break hyphens with a regex. The arXiv margin stamp is rotated text (`line["dir"] != (1, 0)`), and its date is the latest version's, so the year comes from the ID's YYMM.
 - There are no migrations: `create_db()` (`SQLModel.metadata.create_all`) creates missing tables but never alters existing ones. After changing a column in `models.py`, delete `backend/data/library.db` (a new table such as `chatmessage` is picked up automatically).
+- Gemini models write LaTeX math even when told not to, hence KaTeX. Newer models (e.g. `gemini-3.8-flash`) often return 503 "high demand". The free daily quota is per model; a 429 body containing `PerDay` means it's used up until tomorrow.
+- Python heredocs run from Git Bash have mangled backslashes in edited source (`\b` became a backspace character). Edit source with the Edit tool, or check the result with `cat -A`.
 - Windows console output can garble non-ASCII text (e.g. author names); set `PYTHONIOENCODING=utf-8` when printing. The data itself is fine.
 - Existing text files use CRLF and `core.autocrlf=true`; Git's "LF will be replaced by CRLF" warnings are harmless.

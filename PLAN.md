@@ -5,7 +5,7 @@ Task tracking lives in [TODO.txt](TODO.txt). This file covers the reasoning: wha
 **Constraints:**
 - The project must cost **$0**.
 - The frontend is plain HTML/CSS/JavaScript (no React/TypeScript/build tools).
-- The LLM provider is **still open** and will be decided at the start of Phase 4 (see §4).
+- The LLM is **Google Gemini's free tier** (`gemini-3.5-flash-lite`), chosen in Phase 4 after keyless OVHcloud turned out to be unusable (see §4).
 
 ---
 
@@ -44,7 +44,7 @@ Out of scope: user accounts/auth, multi-user, vector databases, background job q
         ▼               ▼                   ▼
   SQLite file      PDF files on disk     External APIs (free)
   data/library.db  data/pdfs/*.pdf       • arXiv (search + PDF download)
-                                         • LLM API (provider decided in Phase 4)
+                                         • Gemini API (LLM)
 ```
 
 ### How many programs?
@@ -73,22 +73,22 @@ All LLM and external-API calls go through the backend. The browser never sees an
 | HTTP client | `httpx` | Clean API, timeouts |
 | arXiv XML parsing | `feedparser` | arXiv returns Atom XML |
 | PDF processing | **PyMuPDF** (`pymupdf`) | Fast, accurate text, and font-size info (useful for title heuristics). AGPL license is fine for coursework; `pypdf` is the permissive fallback |
-| LLM | **Open, decided in Phase 4** (§4) | Leading candidates are the Gemini free tier (needs a free key) and OVHcloud's keyless tier |
+| LLM | **Google Gemini**, free tier, `gemini-3.5-flash-lite` (§4) | Free key with no billing, about 3 s for a whole-paper summary, 1M-token context. Called through Gemini's OpenAI-compatible endpoint, so other providers only need `.env` changes. Keyless OVHcloud was too throttled |
 | Config | `pydantic-settings` + `.env` | Keeps secrets out of code; `.env.example` documents the variables |
 | Frontend | **Plain HTML + CSS + JavaScript** (ES modules), one HTML page per screen | Nothing to install or build; every line is readable without learning a framework. See §5 |
 | Styling | **Pico.css** (one `<link>` tag from a CDN) | Makes plain semantic HTML look good with almost no custom CSS |
-| Markdown rendering | **marked** + **DOMPurify** (`<script>` tags from a CDN) | LLM output is Markdown; DOMPurify sanitizes the HTML before it is inserted |
+| Markdown rendering | **marked** + **KaTeX** + **DOMPurify** (`<script>` tags from a CDN) | LLM output is Markdown with LaTeX math (`marked-katex-extension` renders it); DOMPurify sanitizes the HTML before it is inserted |
 
 `backend/requirements.txt` starts as:
 `fastapi`, `uvicorn[standard]`, `sqlmodel`, `httpx`, `feedparser`, `pymupdf`, `pydantic-settings`, `python-multipart`.
 
-The LLM SDK is added in Phase 4: `openai` for any OpenAI-compatible endpoint such as OVHcloud, or `google-genai` for Gemini.
+No LLM SDK is needed: `llm_client` sends OpenAI-style chat-completion requests with `httpx`, which Gemini's OpenAI-compatible endpoint accepts.
 
 **Why not Streamlit/Gradio?** They would be faster to build, but they blur the frontend/backend split the assignment explicitly asks for.
 
 ---
 
-## 4. LLM choice: keeping it at $0 (decision deferred to Phase 4)
+## 4. LLM choice: keeping it at $0 (decided in Phase 4: Gemini)
 
 Phases 0–3 need no LLM. The app is built with `LLM_MOCK=true` (canned responses), and upload metadata comes from heuristics until Phase 4. So this decision can wait until the LLM features are actually being built.
 
@@ -130,14 +130,24 @@ Avoid little-known keyless gateways that show up in "free LLM API" lists: unknow
 - **Conclusion:** long prompts work, and the answer quality is fine. The problem is throttling, which looks stricter than the documented 2 req/min. Usable for the app only if `llm_client` retries patiently, and a user might wait a minute or more for an answer.
 - **First step of Phase 4:** retest how often requests succeed when spaced a minute apart, then decide whether that wait is acceptable or switch to Gemini.
 
-### Provider-neutral design, so the decision can wait
+### Decision (Oct 7, 2026): Gemini free tier, `gemini-3.5-flash-lite`
+
+- **OVHcloud retest** (`scratch/ovh_retest.py`): **0 of 7** paper-sized requests succeeded, sent 60 s apart to `Meta-Llama-3_3-70B-Instruct`. The rate-limit headers showed the 2 req/min quota already used up at every request, so it is shared with other anonymous users. Keyless OVHcloud is unusable.
+- **Gemini smoke test** (`scratch/gemini_smoke.py`, the app's own summary prompt on BERT, ~18K prompt tokens):
+  - `gemini-3.5-flash-lite`: **3.1 s**, a grounded summary with details that aren't in the abstract (the 80/10/10 masking, corpus sizes).
+  - `gemini-3.5-flash`: 11.9 s, slightly more detail.
+  - `gemini-3.8-flash`: HTTP 503 "high demand" (`llm_client` retries 5xx).
+- **Chosen:** `gemini-3.5-flash-lite`, the fastest with the largest free quota. Through the app, all 5 example questions on BERT got correct, grounded answers in 2–7 s.
+- **Gemini writes LaTeX math** even when the prompt forbids it, so the frontend renders it with KaTeX and the prompt now asks for `$...$` math.
+
+### Provider-neutral design
 
 - `services/llm_client.py` is the **only** module that talks to an LLM. It is configured from `.env`:
   - `LLM_BASE_URL`
   - `LLM_API_KEY` (blank means no key)
   - `LLM_MODEL`
   - `LLM_MOCK`
-- OVHcloud, Pollinations and Mistral all speak the OpenAI-style chat API, so one client with a configurable base URL covers them. Gemini would use its own SDK (`google-genai`).
+- OVHcloud, Pollinations, Mistral and Gemini (through its OpenAI-compatible endpoint) all speak the OpenAI-style chat API, so one client with a configurable base URL covers them.
 - **Cache every summary in the DB.** Generate it once per paper, and again only when the user clicks "Regenerate".
 - **At most one LLM call per user action.** Papers saved from arXiv need no LLM call, since arXiv already provides good metadata.
 - **On HTTP 429, retry with backoff**, then show a friendly message ("LLM rate limit reached, try again shortly") instead of crashing.
@@ -205,6 +215,7 @@ CS59300ASE-Homework-1/
 │   │       ├── library.py            # save a search result / an upload (one PDF pipeline), delete
 │   │       ├── pdf_processor.py      # download PDF, save to disk, extract text (the only PyMuPDF user)
 │   │       ├── metadata_extractor.py # PDF text -> title/authors/year/abstract
+│   │       ├── assistant.py          # summary (cached) and Q&A with chat history
 │   │       ├── llm_client.py         # the ONLY module that talks to an LLM (+ mock mode)
 │   │       └── prompts.py            # prompt templates in one place
 │   ├── data/                    # runtime only, gitignored: library.db, pdfs/
@@ -266,8 +277,9 @@ Design rule: **routers stay thin, services hold the logic, and `llm_client.py` i
 | `DELETE /api/papers/{id}` | — | 204 | Also deletes the PDF file |
 | `POST /api/papers/upload` | multipart `file` | `PaperOut` | Extract text + metadata, then save. 409 already saved, 413 over 25 MB, 415 not `.pdf`, 422 not a PDF / damaged / password-protected / scanned |
 | `GET /api/papers/{id}/pdf` | — | PDF file | The stored copy, shown inline; the cards' "PDF" link uses it when `has_pdf` |
-| `POST /api/papers/{id}/summary` | `?refresh=false` | `{summary}` | Cached after the first call |
-| `POST /api/papers/{id}/ask` | `{question}` | `{answer}` | Appends to chat history |
+| `GET /api/papers/{id}/summary` | — | `{summary, based_on, truncated}` | No LLM call: the cached summary (`null` if none yet), whether the LLM sees the full text, the abstract or nothing (`based_on`), and whether a very long text gets cut |
+| `POST /api/papers/{id}/summary` | `?refresh=false` | `{summary, based_on, truncated}` | Cached after the first call; `refresh=true` regenerates. 422 no text, 429 rate limit, 502 LLM error, 503 LLM not configured |
+| `POST /api/papers/{id}/ask` | `{question}` | `{answer}` | Appends the question and answer to the chat history (only if the LLM call succeeds). Same errors as the summary |
 | `GET /api/papers/{id}/messages` | — | `ChatMessage[]` | |
 
 The frontend sends the **whole `PaperResult`** when saving, so the backend doesn't have to re-query the search API.
