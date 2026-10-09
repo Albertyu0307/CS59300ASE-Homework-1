@@ -27,10 +27,7 @@ The app has three pages: **Search**, **Library**, and a **paper page** for each 
 ### 3. Upload PDF papers
 
 - On the Library page, choose a PDF (up to 25 MB) and the upload starts. The app extracts the full text and the paper's **title, authors, year and abstract**, and shows the paper with the same card as a search result, marked "Uploaded PDF".
-- The metadata comes from the best available source:
-  1. **arXiv PDFs** have their arXiv ID printed in the page margin. The app looks the ID up on arXiv and uses arXiv's exact metadata (no LLM call).
-  2. **Other PDFs:** one LLM call reads the first pages and returns the four fields.
-  3. **Heuristics** (the largest font on page 1 for the title, the text after "Abstract" for the abstract, and so on) fill in any field the LLM gets wrong or misses. They do all the work in mock mode or when the LLM call fails.
+- arXiv PDFs have their arXiv ID printed in the page margin, so the app looks the ID up on arXiv and uses its exact metadata. For other PDFs, one LLM call reads the first pages, and heuristics (e.g. the largest font on page 1 is the title) fill in any field it misses; in mock mode the heuristics do all the work.
 - Files that aren't PDFs, damaged or password-protected PDFs, and scanned PDFs (images of pages, with no text) are rejected with a message saying why. Uploading the same file twice is refused.
 
 ### 4. Summarize a paper with an LLM
@@ -67,10 +64,8 @@ For example, clicking **Summarize** sends `POST /api/papers/{id}/summary`. `rout
 
 Main design choices:
 
-- **Every paper has its full text.** Saving a search result runs the same PDF pipeline as an upload, so summaries and answers are based on the paper's content.
-- **The whole paper goes in the prompt**, with no RAG or vector database. A typical paper is 10–30K tokens, far below the model's context window; very long papers are cut at `LLM_MAX_PAPER_CHARS`.
-- **One module talks to the LLM** (`services/llm_client.py`), through the OpenAI-compatible chat API. Switching to another provider only means editing `.env`, and mock mode gives canned answers without calling any API.
-- **Staying within free tiers:** summaries are cached, each user action makes at most one LLM call, and rate-limit and server errors are retried with backoff before the user sees a message.
+- **The whole paper goes in the prompt**, with no RAG or vector database. Saving a search result runs the same PDF pipeline as an upload, so every paper with a PDF has its full text. A typical paper is 10–30K tokens, far below the model's context window; very long papers are cut at `LLM_MAX_PAPER_CHARS`.
+- **One module talks to the LLM** (`services/llm_client.py`), through the OpenAI-compatible chat API, so switching providers only means editing `.env`. To stay within the free tier, summaries are cached, each user action makes at most one LLM call, and rate-limit and server errors are retried with backoff.
 - **One result format:** search results from arXiv and OpenAlex are converted to the same `PaperResult`, so the rest of the app doesn't care where a paper came from.
 
 | Part | Technology |
@@ -83,89 +78,46 @@ Main design choices:
 | Frontend | Plain HTML, CSS and JavaScript (ES modules); Pico.css (styling), marked and KaTeX (Markdown and math) and DOMPurify (sanitizing) loaded from a CDN |
 | Other libraries | httpx (HTTP), feedparser (arXiv's Atom XML), pydantic-settings (`.env`); all versions are pinned in `backend/requirements.txt` |
 
-While the app runs, `http://localhost:8000/docs` lists every API endpoint and lets you try it. The full design and its reasoning (data model, API contract, the comparison of free LLM providers) are in [PLAN.md](PLAN.md).
+The full design and its reasoning (data model, API contract, the comparison of free LLM providers) are in [PLAN.md](PLAN.md).
 
 ## Prerequisites
 
-- **Python 3.13** (tested with 3.13.15). Check with `python --version` (Windows) or `python3 --version` (macOS/Linux).
-  - Windows: install from [python.org](https://www.python.org/downloads/) or with `winget install Python.Python.3.13`.
-  - Debian/Ubuntu: also install the venv module: `sudo apt install python3-venv`.
+- **Python 3.13** (tested with 3.13.15), from [python.org](https://www.python.org/downloads/). On Debian/Ubuntu, also run `sudo apt install python3-venv`.
 - **Git**
 - An internet connection (the app calls arXiv and Gemini, and the pages load their CSS/JS libraries from a CDN).
-- A free **Gemini API key** for the LLM features (summary, questions, metadata of uploaded PDFs). Setup step 7 says how to get one.
+- Optional: a free **Gemini API key** for the LLM features (setup step 2). Without one, the app runs in mock mode.
 
 ## Setup (once)
 
-The steps are the same on every OS. Where a command differs, both versions are shown: the Windows commands are for **PowerShell**.
+**1. Clone the repository, create a virtual environment and install the dependencies**
 
-**1. Clone the repository and enter the backend folder**
+Windows (PowerShell):
 
-```
+```powershell
 git clone https://github.com/Albertyu0307/CS59300ASE-Homework-1.git
-cd CS59300ASE-Homework-1/backend
-```
-
-**2. Create a virtual environment** (a private folder for this project's Python packages)
-
-```powershell
-# Windows
+cd CS59300ASE-Homework-1\backend
 python -m venv .venv
-```
-```bash
-# macOS / Linux
-python3 -m venv .venv
-```
-
-**3. Windows only: allow PowerShell to run the activation script** (macOS/Linux: skip to step 4)
-
-Activating the virtual environment runs a PowerShell script, and Windows blocks scripts by default ("running scripts is disabled on this system"). Check the current setting:
-
-```powershell
-Get-ExecutionPolicy
-```
-
-If it prints `RemoteSigned`, `Unrestricted` or `Bypass`, scripts are already enabled: skip to step 4. Otherwise (usually `Restricted`), pick **one** of these:
-
-- **Option A: allow scripts permanently for your user account** (one time, no admin rights needed; type `Y` if asked to confirm). Scripts created on your machine can run; scripts downloaded from the internet still need a signature.
-  ```powershell
-  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-  ```
-- **Option B: allow scripts in this PowerShell window only.** Nothing is changed permanently, but you must run it again in every new window before activating.
-  ```powershell
-  Set-ExecutionPolicy -Scope Process Bypass
-  ```
-
-**4. Activate the virtual environment**
-
-```powershell
-# Windows
 .venv\Scripts\Activate.ps1
-```
-```bash
-# macOS / Linux
-source .venv/bin/activate
-```
-
-Your prompt now starts with `(.venv)`.
-
-**5. Install the dependencies**
-
-```
 pip install -r requirements.txt
-```
-
-**6. Create your settings file**
-
-```powershell
-# Windows
-Copy-Item .env.example .env
-```
-```bash
-# macOS / Linux
 cp .env.example .env
 ```
 
-**7. Add a free Gemini API key**
+If PowerShell says "running scripts is disabled on this system", run `Set-ExecutionPolicy -Scope Process Bypass` (it only affects that window) and run the activation line again.
+
+macOS / Linux:
+
+```bash
+git clone https://github.com/Albertyu0307/CS59300ASE-Homework-1.git
+cd CS59300ASE-Homework-1/backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+After activation, your prompt starts with `(.venv)`. The last line creates `backend/.env`, your settings file.
+
+**2. Add a free Gemini API key**
 
 1. Go to https://aistudio.google.com and sign in with a Google account.
 2. Click **Get API key** and create a key in a project **without billing enabled**. Then it can't cost anything: when the free quota runs out, the app shows "LLM rate limit reached" instead.
@@ -175,20 +127,13 @@ Without a key, skip this step: the app still runs, but summaries and answers are
 
 ## Running the app
 
-**Windows (PowerShell), copy-paste:** paste this whole block into any PowerShell window and press Enter. It uses Option B from step 3, so it works in every new window. The first line assumes the repository was cloned to your Desktop; if it is somewhere else, change that path.
-
-```powershell
-Set-Location "$HOME\Desktop\CS59300ASE-Homework-1\backend"
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload
-```
-
-**Manually:** from the `backend` folder, with the virtual environment activated. In a new terminal, activate it again first (step 4; on Windows with Option B, step 3 too):
+From the `backend` folder, with the virtual environment activated:
 
 ```
 uvicorn app.main:app --reload
 ```
+
+In a new terminal, `cd` into `backend` and activate the virtual environment again first (the activation line from step 1, after `Set-ExecutionPolicy` on Windows if needed).
 
 Then open **http://localhost:8000** in a browser; the footer of the Search page should say "Backend: ok". Stop the server with `Ctrl+C`.
 
@@ -197,16 +142,7 @@ Then open **http://localhost:8000** in a browser; the footer of the Search page 
 
 ## Configuration
 
-Settings are read from `backend/.env` (created in setup step 6) when the server starts, so restart the server after changing them. Every setting has a default, so the file is optional.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `LLM_BASE_URL` | Gemini's OpenAI-compatible endpoint | LLM API endpoint; any OpenAI-compatible endpoint works |
-| `LLM_API_KEY` | empty | API key (setup step 7) |
-| `LLM_MODEL` | `gemini-3.5-flash-lite` | Model name |
-| `LLM_MOCK` | `true` | `true` returns canned text instead of calling an LLM, so no key is needed. Set it to `false` once you have a key |
-| `LLM_MAX_PAPER_CHARS` | `200000` | Longer paper texts are cut to this many characters before they go to the LLM; the paper page says when that happens |
-| `DATA_DIR` | `./data` | Where the database and PDFs are stored, relative to `backend/` |
+Settings are read from `backend/.env` when the server starts, so restart the server after changing them. The only ones you need to change are `LLM_API_KEY` and `LLM_MOCK` (setup step 2). The others (`LLM_BASE_URL` and `LLM_MODEL` for a different provider, `LLM_MAX_PAPER_CHARS`, `DATA_DIR`) are explained in [`backend/.env.example`](backend/.env.example).
 
 `.env` is ignored by Git. Never commit a real API key; `.env.example` lists the variables without a key.
 
@@ -252,10 +188,8 @@ frontend/
 ## Limitations and troubleshooting
 
 - **"arXiv is unavailable right now, so these results come from OpenAlex."** arXiv's search API blocks a computer for 20+ minutes (HTTP 429) after a handful of requests. The app then uses OpenAlex and tries arXiv again after 10 minutes. Some OpenAlex results have no PDF and are saved as "Abstract only". Downloading arXiv PDFs and recognizing uploaded arXiv papers still work during a block.
-- **Answers start with "Mock answer".** `LLM_MOCK` is still `true`; see setup step 7, then restart the server.
-- **"LLM rate limit reached" or "The LLM's free daily quota is used up".** Gemini's free tier limits requests per minute and per day. Wait a minute, or until the next day for the daily quota.
-- **"The LLM service is unavailable right now (HTTP 503)".** Gemini is overloaded. Try again in a minute.
-- **"The LLM provider rejected the API key".** Check `LLM_API_KEY` in `backend/.env`, then restart the server.
+- **Answers start with "Mock answer".** `LLM_MOCK` is still `true`; see setup step 2, then restart the server.
+- **LLM errors** ("LLM rate limit reached", "The LLM's free daily quota is used up", "The LLM service is unavailable right now (HTTP 503)", "The LLM provider rejected the API key"). For a rate limit or a 503 (Gemini is overloaded), wait a minute; the daily quota resets the next day. For a rejected key, check `LLM_API_KEY` in `backend/.env` and restart the server.
 - **Uploaded papers' metadata may need checking.** For PDFs without an arXiv ID, the fields come from the LLM and the heuristics and can be wrong (authors are the hardest). The app has no way to edit them.
 - **Scanned PDFs are not supported.** There is no OCR, so a PDF made of page images is rejected.
 - **Very long papers:** only the first 200,000 characters (about 50K tokens) go to the LLM, and the paper page says so.
@@ -267,6 +201,7 @@ frontend/
 | File | Contents |
 |---|---|
 | [PLAN.md](PLAN.md) | The design: requirements, architecture, data model, API contract, design decisions, and the comparison of free LLM providers |
+| [WALKTHROUGH.md](WALKTHROUGH.md) | A guided tour of the code: what each component does and what happens in the code when you click something, with links to the exact lines |
 | [TODO.txt](TODO.txt) | The task list by phase, with notes on how each item was tested |
 | [CLAUDE.md](CLAUDE.md) | Instructions that Claude Code, the coding agent used to build the app, reads at the start of every session: commands, architecture, known pitfalls |
 | [hw1.pdf](hw1.pdf) | The assignment handout |
