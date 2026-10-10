@@ -4,6 +4,8 @@ CS 59300 ASE, Homework 1. Author: Albert Yu
 
 A web app for working with research papers: search arXiv (or OpenAlex), save papers to a local library, upload your own PDFs, and get an LLM-generated summary of a paper and answers to questions about it. It was built with the coding agent Claude Code.
 
+**Demo video:** [demo.mp4](demo.mp4) (2.5 minutes, no sound). It shows searching for a paper (0:44), saving it to the library and the library surviving a server restart (0:58), uploading a PDF (1:26), generating a summary (1:36) and asking a question (1:50).
+
 ## Features
 
 The app has three pages: **Search**, **Library**, and a **paper page** for each saved paper. A typical session:
@@ -205,3 +207,4 @@ frontend/
 | [TODO.txt](TODO.txt) | The task list by phase, with notes on how each item was tested |
 | [CLAUDE.md](CLAUDE.md) | Instructions that Claude Code, the coding agent used to build the app, reads at the start of every session: commands, architecture, known pitfalls |
 | [hw1.pdf](hw1.pdf) | The assignment handout |
+| [demo.mp4](demo.mp4) | The demo video |

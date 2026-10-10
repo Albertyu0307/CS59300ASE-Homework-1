@@ -180,15 +180,19 @@ PHASE 5 -- Polish, README, deployment                     target: Fri 10/9
     Real Gemini: summary 3.5 s, answer 1.3 s, both with details from the paper's body)
 [x] Secret check before pushing: git grep for the key / "API_KEY=" (history too)
     (Oct 9: no key in `git log -p --all`; backend/.env was never committed)
-[ ] Demo video: search -> save -> upload PDF -> summary -> ask a question
+[x] Demo video: search -> save -> upload PDF -> summary -> ask a question
     (LLM_MOCK=false; use the best model the chosen provider allows)
-[ ] Final commit + push
+    (Oct 9: demo.mp4, 2:32, 1080p re-encode at 8.3 MB; the 148 MB original is gitignored.
+    Agent checked it frame by frame against hw1.pdf: all 5 items shown, plus a server restart)
+[x] Final commit + push
+    (Oct 9: demo video, README link to it, TODO ticks)
 
 ======================================================================
 PHASE 6 -- Submission deliverables (non-code)             target: Sat 10/10
 ======================================================================
 [ ] Reflection report (deferred) -- but SCREENSHOT agent interactions as you
     go, especially when the agent gets something wrong; they can't be recreated later
-[ ] GitHub repo is PRIVATE (anonymous visitors got a 404 on Oct 9): make it public or add the course
+[x] GitHub repo is PRIVATE (anonymous visitors got a 404 on Oct 9): make it public or add the course
     staff as collaborators, or the grader can't open the link or run the README's git clone
+    (Oct 9: made public; an anonymous request now gets HTTP 200)
 [ ] Submit on Brightspace: GitHub link + video + report
