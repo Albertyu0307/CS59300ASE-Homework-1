@@ -101,7 +101,7 @@ cd CS59300ASE-Homework-1\backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env
+if (-not (Test-Path .env)) { cp .env.example .env }
 ```
 
 If PowerShell says "running scripts is disabled on this system", run `Set-ExecutionPolicy -Scope Process Bypass` (it only affects that window) and run the activation line again.
@@ -114,10 +114,10 @@ cd CS59300ASE-Homework-1/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
+[ -f .env ] || cp .env.example .env
 ```
 
-After activation, your prompt starts with `(.venv)`. The last line creates `backend/.env`, your settings file.
+After activation, your prompt starts with `(.venv)`. The last line creates `backend/.env`, your settings file. If `.env` already exists, it is left alone, so running these steps again doesn't erase your API key.
 
 **2. Add a free Gemini API key**
 
