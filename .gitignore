@@ -18,3 +18,6 @@ __pycache__/
 
 # Runtime data (SQLite DB, downloaded/uploaded PDFs)
 backend/data/
+
+# Original demo recording (148 MB, over GitHub's 100 MB limit); demo.mp4 is the compressed copy
+demo-uncompressed.mp4
