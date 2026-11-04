@@ -1,0 +1,5 @@
+# Test dependencies (on top of the app's own). Install with:  pip install -r requirements-dev.txt
+-r requirements.txt
+pytest==9.2.0
+respx==0.23.1  # mocks httpx: arXiv, OpenAlex, PDF downloads and the LLM are never really called
+playwright==1.64.1  # browser tests in tests/e2e/ (skipped when no browser is available)

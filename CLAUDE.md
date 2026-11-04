@@ -8,7 +8,7 @@ CS 59300 ASE Homework 1: an AI research assistant (search arXiv, save papers to 
 
 - **PLAN.md** is the design (architecture, data model in §7, API contract in §8, design decisions in §9). **TODO.txt** is the task tracker. Work one phase / TODO block at a time and tick items (`[x]`) as they are finished.
 - Hard constraints: **total cost $0**; frontend is **plain HTML/CSS/JS** (ES modules, no React/TypeScript/npm/build step). The LLM is Gemini's free tier (`gemini-3.5-flash-lite`) through its OpenAI-compatible endpoint (PLAN.md §4); the key lives only in the gitignored `backend/.env`.
-- Tests are out of scope for HW1 (HW2 builds on `backend/tests/`).
+- Tests (HW2) live in `backend/tests/` (pytest); see Commands and Testing below.
 
 ## Commands
 
@@ -25,7 +25,15 @@ uvicorn app.main:app --reload             # app at http://localhost:8000, API do
 
 Without activating: `.venv/Scripts/python.exe -m uvicorn app.main:app`. Test endpoints in `/docs` before building UI for them. Always open the frontend through `http://localhost:8000`, never as `file://` (ES modules fail there).
 
-No lint or test setup exists yet. Throwaway experiments go in `scratch/` (gitignored), e.g. `scratch/arxiv_smoke.py`.
+Tests: `pip install -r requirements-dev.txt` once, then `pytest` from `backend/` (`pytest -m "not e2e"` skips the browser tests; `pytest tests/test_api_papers.py -k upload` runs a subset). No lint setup exists. Throwaway experiments go in `scratch/` (gitignored), e.g. `scratch/arxiv_smoke.py`.
+
+## Testing
+
+- `tests/conftest.py` pins the settings through environment variables **before** importing `app` (env vars beat `backend/.env`, which may have `LLM_MOCK=false` and a real key). Autouse fixtures give every test its own data folder and SQLite engine (`app.database.engine` is swapped), remove the mock-LLM delay and arXiv throttle, clear the arXiv cache/cooldown, and start a respx router with `assert_all_mocked=True`: any unmocked httpx request fails the test. Mock outgoing calls with the `http_mock` fixture; `real_llm` turns mock mode off against `LLM_URL`; `db` seeds and inspects rows.
+- `tests/factories.py` builds real PDFs with PyMuPDF (`make_pdf(arxiv_stamp=..., header=..., password=...)`, `make_scanned_pdf()`) and fake arXiv/OpenAlex/LLM responses. Don't add binary fixture files.
+- `tests/e2e/` runs uvicorn in a thread of the test process, so the fixtures above also apply to the server. The browser can only reach the test server: CDN files are blocked (pages fall back to plain text; Pico's `[hidden]` rule is missing), except in `online_page`. The browser is Playwright's Chromium, else an installed Chrome / Edge, else the tests are skipped.
+- `xfail(strict=True)` tests record known bugs; remove the marker when a fix makes them pass.
+- `tests/TEST_CATALOG.md` lists every test case in 39 numbered groups (9 areas, A–I), with counts. The user refers to tests by those numbers ("group 17, #4"), so keep the existing numbering and update the file and its counts when tests are added, removed or renamed.
 
 ## Architecture
 
