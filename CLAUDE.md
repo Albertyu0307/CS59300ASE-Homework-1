@@ -27,6 +27,8 @@ Without activating: `.venv/Scripts/python.exe -m uvicorn app.main:app`. Test end
 
 Tests: `pip install -r requirements-dev.txt` once, then `pytest` from `backend/` (`pytest -m "not e2e"` skips the browser tests; `pytest tests/test_api_papers.py -k upload` runs a subset). No lint setup exists. Throwaway experiments go in `scratch/` (gitignored), e.g. `scratch/arxiv_smoke.py`.
 
+Coverage: `python tools/run_coverage.py` from `backend/` runs the whole suite under coverage.py (`.coveragerc`: statements + branches of `app/`) with the `tools/js_coverage.py` pytest plugin (V8 line/function coverage of `frontend/js/` during the browser tests; it patches Playwright, not the fixtures). Results go to `coverage-report/` (gitignored, emptied by each run). `--compare <commit>` also measures that commit in a temporary git worktree and prints the two side by side; the README compares with the initial suite, `f1c067b`.
+
 ## Testing
 
 - `tests/conftest.py` pins the settings through environment variables **before** importing `app` (env vars beat `backend/.env`, which may have `LLM_MOCK=false` and a real key). Autouse fixtures give every test its own data folder and SQLite engine (`app.database.engine` is swapped), remove the mock-LLM delay and arXiv throttle, clear the arXiv cache/cooldown, and start a respx router with `assert_all_mocked=True`: any unmocked httpx request fails the test. Mock outgoing calls with the `http_mock` fixture; `real_llm` turns mock mode off against `LLM_URL`; `llm_provider` adds a fake provider there that answers every request and records the messages (to check what text the LLM got); `db` seeds and inspects rows.

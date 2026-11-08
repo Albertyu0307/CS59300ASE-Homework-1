@@ -169,6 +169,57 @@ The tests run offline and never touch `backend/.env` or `backend/data/`. Each te
 
 Tests marked `xfail` record known weak spots (see the reasons in `pytest -rx`). If one starts passing after a fix, pytest reports it so its marker can be removed.
 
+## Measuring code coverage
+
+`backend/tools/run_coverage.py` runs the whole test suite and measures how much of the code it runs:
+
+- **Backend** (`backend/app/`): statement and branch coverage, measured with [coverage.py](https://coverage.readthedocs.io/) (settings in [`backend/.coveragerc`](backend/.coveragerc)). The browser tests count too, because their server runs inside the test process.
+- **Frontend** (`frontend/js/`): line and function coverage during the browser tests. The pytest plugin [`backend/tools/js_coverage.py`](backend/tools/js_coverage.py) reads it from the coverage counters of Chromium's JavaScript engine (V8). This needs a Chromium-based browser: Playwright's Chromium (`playwright install chromium`), or an installed Chrome or Edge.
+
+From the `backend` folder, with the virtual environment activated:
+
+```
+pip install -r requirements-dev.txt
+python tools/run_coverage.py
+```
+
+`requirements-dev.txt` includes coverage.py (version pinned). The run takes about two minutes. It prints the coverage of each file, with the lines and branches that no test runs, then the totals. The results are saved in `backend/coverage-report/` (ignored by Git), which each run empties first:
+
+| File | Contents |
+|---|---|
+| `summary.json` | the totals and the per-file numbers, the test results, and the Python, coverage.py and browser versions used |
+| `html/index.html` | coverage.py's report: every backend file, with the lines and branches no test runs highlighted |
+| `backend.json`, `js-v8.json`, `junit.xml` | the raw data: coverage.py's JSON report, the V8 counts, the test results |
+
+Notes:
+
+- The tests run offline against mocked services, so the numbers depend only on the code and the tests. If no browser is found, the browser tests are skipped and the frontend is not measured. The backend numbers stay the same, since the other tests reach all the backend code that the browser tests do.
+- For the frontend measurement, the browser starts with its back/forward cache and RenderDocument turned off, so that each tab keeps one renderer process. Otherwise the counts of a page are lost when a click or a form submit navigates to the next one.
+- To measure the backend for a few tests only, run coverage.py directly, e.g. `python -m coverage run -m pytest tests/test_api_papers.py`, then `python -m coverage report`.
+
+### Comparing with the initial test suite
+
+The first version of the test suite is commit `f1c067b`. To measure it next to your checkout, from the `backend` folder:
+
+```
+python tools/run_coverage.py --compare f1c067b
+```
+
+This checks out `f1c067b` in a temporary Git worktree (your checkout is left alone) and measures it with the same settings, then measures your checkout. It prints each one's report, and at the end the two side by side: the totals, and the percentages of each file. It takes about four minutes. The results of `f1c067b` are saved in `backend/coverage-report/f1c067b/`.
+
+The results, with Python 3.13.15, coverage.py 7.17.2 and Chromium 156 on Windows 11 (an installed Chrome 156 gives the same numbers). The application code is the same in both versions, so only the tests differ:
+
+| | Initial suite (`f1c067b`) | Current suite |
+|---|---|---|
+| Test cases | 412 | 477 |
+| of which xfail (known bugs) | 4 | 11 |
+| Backend statements | 791 / 795 (99.5%) | 795 / 795 (100%) |
+| Backend branches | 148 / 154 (96.1%) | 153 / 154 (99.4%) |
+| Frontend lines | 517 / 524 (98.7%) | 524 / 524 (100%) |
+| Frontend functions | 56 / 59 (94.9%) | 58 / 59 (98.3%) |
+
+What the current suite doesn't run can't happen in use: the retry loop in `services/llm_client.py` can only end without a reply when it is given a negative retry count, and the upload form's submit handler in `js/library.js` never fires, because a form whose only field is a file input can't be submitted with Enter.
+
 ## Configuration
 
 Settings are read from `backend/.env` when the server starts, so restart the server after changing them. The only ones you need to change are `LLM_API_KEY` and `LLM_MOCK` (setup step 2). The others (`LLM_BASE_URL` and `LLM_MODEL` for a different provider, `LLM_MAX_PAPER_CHARS`, `DATA_DIR`) are explained in [`backend/.env.example`](backend/.env.example).
@@ -201,9 +252,13 @@ backend/
     conftest.py               shared fixtures: temporary library, mocked network, test client
     factories.py              test data: generated PDFs, fake arXiv/OpenAlex/LLM responses
     e2e/                      browser tests of the frontend (Playwright)
+  tools/                      code coverage (see "Measuring code coverage")
+    run_coverage.py           runs the tests under coverage; can compare with another commit
+    js_coverage.py            pytest plugin: coverage of frontend/js/ during the browser tests
   requirements.txt            Python dependencies (pinned versions)
-  requirements-dev.txt        test dependencies: pytest, respx, Playwright
+  requirements-dev.txt        test dependencies: pytest, respx, Playwright, coverage.py
   pytest.ini                  pytest settings
+  .coveragerc                 coverage.py settings
   .env.example                template for backend/.env
   data/                       created at runtime, not in Git: library.db and pdfs/
 frontend/
