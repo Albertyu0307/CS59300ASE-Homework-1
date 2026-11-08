@@ -1,12 +1,12 @@
 # Test catalog
 
-Every automated test, grouped by feature: 449 test cases in 39 groups and 9 areas.
+Every automated test, grouped by feature: 477 test cases in 46 groups and 11 areas.
 For how to run them and how they are set up, see "Running the tests" in the [README](../../README.md).
 
 - The group and test numbers are only for this catalog (e.g. "group 17, #4"); they aren't in the code.
 - "(×N: …)" means one test function that runs N cases (`@pytest.mark.parametrize`).
 - **xfail** marks a test for a known bug: it is expected to fail until the bug is fixed.
-- Last checked on 2026-11-08: 445 passed, 4 xfailed. `pytest --collect-only -q` lists every case.
+- Last checked on 2026-11-08: 473 passed, 4 xfailed. `pytest --collect-only -q` lists every case.
   When tests are added or removed, update this file and the counts.
 
 | Area | Groups | Test cases |
@@ -19,8 +19,42 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 | F. PDF processing | 23–25 | 33 |
 | G. Metadata extraction for uploads | 26–31 | 99 |
 | H. Prompts and paper text | 32–33 | 20 |
-| I. Frontend in a real browser | 34–39 | 61 |
-| **Total** | **39** | **449** |
+| I. Frontend in a real browser | 34–39 | 63 |
+| J. Handout requirements end to end | 40–44 | 13 |
+| K. Repository rules | 45–46 | 13 |
+| **Total** | **46** | **477** |
+
+## Handout coverage
+
+Each requirement in [hw1.pdf](../../hw1.pdf) and the groups whose tests check it ("34 #21" is test 21 of group 34).
+Area J follows each requirement through the whole app; the other groups test one part at a time.
+
+| hw1.pdf | Groups |
+|---|---|
+| **1. Search:** search by keywords or a research topic | 4–9, 34, 44 |
+| … each result shows the title, authors, year and abstract | 4 #1, 7 #1, 9 #1, 34 #2, 34 #15, 34 #21, 40, 44 |
+| … and a link to the paper, when available | 7 #1, 9 #3–4, 34 #2, 34 #21, 44 #2 |
+| **2. Library:** save chosen search results in a local database | 11, 34 #8–12, 40, 44 #1 |
+| … still there after the app is restarted | 3 #2, 41 |
+| … still there after the page is refreshed | 34 #10, 44 |
+| … browse the saved papers | 14, 35 #1–2, 44 #1 |
+| **3. Upload:** add a PDF to the database | 12, 13, 35 #3–7, 44 #2 |
+| … extract its title, authors, year and abstract | 12 #1, 12 #4, 12 #7, 26–31, 44 #2 |
+| … and show it like a search result | 35 #3, 44 #2 |
+| **4. Summary:** an LLM summary of a chosen paper | 16, 18, 36, 42, 44 |
+| … based on the paper's content, not only its title or metadata | 11 #1, 16 #5, 32, 42, 44 |
+| **5. Questions:** natural-language questions about a chosen paper | 17, 18, 38, 42, 44 |
+| … such as the handout's five examples | 38 #9, 43 |
+| Graphical user interface | 1, 34–39, 44 |
+| Frontend and backend logic | frontend: 34–39, 44; backend: 1–33, 40–43 |
+| An external API for paper search | 4–10 |
+| A local database to store and retrieve papers | 3, 11–15, 41 |
+| PDF upload and processing | 12, 13, 23–31 |
+| An LLM API to summarize papers and answer questions | 16–22, 42, 43 |
+| **Submission:** no API keys or other credentials committed | 45 |
+| … README, dependency and configuration files | 46 |
+
+The demo video and the reflection report are not code, so no test covers them.
 
 ---
 
@@ -388,9 +422,9 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## I. Frontend in a real browser (`tests/e2e/`): 61 cases
+## I. Frontend in a real browser (`tests/e2e/`): 63 cases
 
-### 34. Search page (20 cases)
+### 34. Search page (21 cases)
 **What they test:** what a user sees and can do on `index.html`.
 1. `test_footer_shows_the_backend_is_up`: the footer says "Backend: ok".
 2. `test_search_shows_a_card_per_result`: the URL becomes `?q=…&source=auto`; there are 2 cards with title, "Alice Smith, Bob Jones · 2021", abstract, and links.
@@ -412,6 +446,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 18. `test_footer_says_when_the_backend_is_unreachable`: a failed health check shows "Backend unreachable: 503 Service Unavailable".
 19. `test_results_are_shown_even_when_the_library_cannot_be_loaded`: the results appear with no error; a paper already in the library shows "Save to library", and saving it gets a 409 that shows "Saved".
 20. `test_source_picker_works_when_local_storage_is_blocked`: with localStorage throwing, the picker starts at auto, choosing OpenAlex raises no error, and the search still runs on OpenAlex.
+21. `test_openalex_result_shows_every_field_and_links_to_the_paper`: an OpenAlex result shows its title, "Kaiming He, Xiangyu Zhang · 2016" and its abstract; the title and "View paper" link to the DOI (the title in a new tab), and "PDF" links to the open-access copy.
 
 ### 35. Library page (16 cases)
 **What they test:** listing, uploading and deleting on `library.html`.
@@ -445,7 +480,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 3. `test_paper_without_any_text_offers_no_llm_features`: a note; Summarize, the quick questions and the question box are marked hidden.
 4. `test_paper_without_any_text_hides_its_controls_even_without_the_cdn`: **xfail (known bug).** When Pico.css can't load, the quick-question buttons stay visible.
 
-### 38. Paper page: questions and answers (8 cases)
+### 38. Paper page: questions and answers (9 cases)
 **What they test:** asking questions in the chat section.
 1. `test_asking_a_typed_question`: "You" and "Assistant" messages appear, the box is cleared, and 2 messages are saved.
 2. `test_enter_sends_and_shift_enter_adds_a_line`: a two-line question is sent with Enter.
@@ -455,9 +490,58 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 6. `test_failed_question_is_kept_for_a_retry`: an error message; the question disappears from the chat but stays in the box; nothing is saved.
 7. `test_a_second_question_waits_for_the_first`: pressing Enter again while a question is being answered sends nothing: one request, two stored messages.
 8. `test_chat_history_that_cannot_be_loaded_is_explained`: shows "Could not load the earlier questions: Database is locked" with an empty chat; a new question is still answered and stored.
+9. `test_quick_questions_are_the_handouts_examples`: the 5 quick-question buttons are exactly hw1.pdf's example questions, in order.
 
 ### 39. Paper page: bad links and Markdown (7 cases)
 **What they test:** broken page links, and how LLM answers are rendered.
 1. `test_page_without_a_valid_id` (×5: no ID, empty, `abc`, `1;DROP`, `-1`): shows "No paper selected. Open one from your library."
 2. `test_page_of_a_deleted_paper`: shows a red "Could not load the paper: Paper not found…".
 3. `test_llm_markdown_and_math_are_rendered_and_sanitized`: bold renders as bold and `$O(n^2)$` renders as math, while `<script>` and `onerror` are stripped and never run. This is the only test that needs internet (for the CDN libraries); it skips when offline.
+
+---
+
+## J. Handout requirements end to end (`test_requirements.py`, `e2e/test_workflows.py`): 13 cases
+
+These follow a paper through several endpoints, the way a user's clicks do, instead of testing one endpoint at a time.
+Most use `llm_provider`, a fake LLM provider behind the real client, so they can check which text the LLM was sent.
+
+### 40. Saving what the search returned (`test_requirements.py`, 2 cases)
+**What they test:** requirements 1 and 2: a search result can be saved exactly as `GET /api/search` returned it, which is what the Save button sends.
+1. `test_search_result_is_saved_exactly_as_the_search_returned_it` (×2: arXiv, OpenAlex): the result has a title, authors, year, abstract and link; saving it returns 201, and the library lists it with every field unchanged and the full text of its PDF.
+
+### 41. Restarting the app (1 case)
+**What they test:** requirement 2: "Saved papers should still be available after the application is restarted."
+1. `test_papers_pdfs_summaries_and_questions_survive_a_restart`: a search result is saved and a PDF uploaded, one is summarized and the other asked about; after a restart, the library, the summary, the chat history and both PDF files are the same, with no new LLM call. A follow-up question after the restart still sends the stored text and the earlier question and answer.
+
+### 42. The LLM reads the paper (3 cases)
+**What they test:** requirements 4 and 5: the summary and the answers are "based on the content of the selected paper rather than only its title or metadata".
+1. `test_summary_and_answers_are_based_on_the_text_of_the_papers_pdf` (×2: saved from search, uploaded): the summary request and the question request both contain a phrase that is only in the body of the PDF, not in its title or abstract; `based_on` is `full_text`.
+2. `test_summary_and_answers_use_only_the_selected_paper`: with two papers in the library, both requests contain the selected paper's title and text and nothing of the other's, and nothing is stored for the other paper.
+
+### 43. The handout's example questions (5 cases)
+**What they test:** requirement 5's five example questions, sent through the API.
+1. `test_handouts_example_question_is_answered_from_the_paper` (×5: problem, main idea, datasets, limitations, baselines): returns 200 with the provider's answer; the LLM got the paper's text in the system message and the question, word for word, as the last message; the question and the answer are stored.
+
+### 44. The demo workflow in the browser (`e2e/test_workflows.py`, 2 cases)
+**What they test:** the demo video's five steps, done only through the pages (nothing is set up in the database), with page reloads along the way.
+1. `test_search_save_summarize_and_ask`: the search shows 3 cards with title, "Alice Smith, Bob Jones · 2021", abstract and "View on arXiv"; two results are saved and are still marked "Saved" after a reload; the library lists both, newest first, with the same details; on the paper page, Summarize and a quick question show the summary and the answer, and both LLM requests contained the downloaded PDF's body text; after a reload, the summary and the 2 chat messages are still there, with no new LLM request.
+2. `test_upload_summarize_and_ask`: uploading a PDF shows a card with the title, "Alice Smith, Bob Jones · 2019", the abstract, an "Uploaded PDF" badge and a link to the stored PDF, after one LLM call for the metadata; the card is still there after a reload; the paper page shows the same details, with a title that isn't a link (an upload has no web page); Summarize and a typed question work, and both LLM requests contained the PDF's body text.
+
+---
+
+## K. Repository rules (`test_repository.py`): 13 cases
+
+From hw1.pdf's "Submission" section: "Do not commit API keys, passwords, or other credentials", and the repository needs a README with setup instructions and "any necessary dependency/configuration files". The git checks are skipped outside a git checkout (e.g. a ZIP download).
+
+### 45. No credentials committed (8 cases)
+**What they test:** that no API key ends up on GitHub.
+1. `test_no_credentials_are_committed`: no tracked text file contains a Google API key (`AIza…`), an OpenAI-style `sk-…` key, a private key, or a `.env`-style line with a filled-in `LLM_API_KEY=`.
+2. `test_credential_patterns_tell_keys_from_mentions` (×6): the control for #1: a fake Google key, a fake `sk-` key and `LLM_API_KEY=abc123` are found; a blank `LLM_API_KEY=` line followed by another setting, Python's `LLM_API_KEY=""` and the README's sentence about the variable are not.
+3. `test_env_file_with_the_api_key_is_ignored_by_git`: `backend/.env` is not tracked, and `git check-ignore` confirms that `git add .` would skip it.
+
+### 46. Dependency, configuration and README files (5 cases)
+**What they test:** that someone following the README gets a working app.
+1. `test_env_example_lists_every_setting_and_no_key`: `.env.example` names exactly the settings in `config.py`, with `LLM_API_KEY` blank.
+2. `test_dependencies_have_pinned_versions` (×2: `requirements.txt`, `requirements-dev.txt`): every line is `name==version`.
+3. `test_requirements_txt_installs_every_package_the_app_imports`: every third-party module imported in `app/` comes from a package in `requirements.txt` or from one of its dependencies (including those of extras such as `uvicorn[standard]`).
+4. `test_readme_setup_and_run_commands_match_the_project`: the files in the README's `pip install -r` and `cp … .env` commands exist, and `uvicorn app.main:app` names the app.

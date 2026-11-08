@@ -7,7 +7,7 @@ import pytest
 from app.config import settings
 from app.services import llm_client
 from tests.conftest import LLM_URL
-from tests.factories import completion
+from tests.factories import HANDOUT_QUESTIONS, completion
 
 expect = pytest.importorskip("playwright.sync_api").expect
 pytestmark = pytest.mark.e2e
@@ -275,6 +275,12 @@ def test_chat_history_that_cannot_be_loaded_is_explained(page, db):
     expect(page.locator(".chat-message")).to_have_count(2)
     expect(page.locator("#chat-status")).to_be_hidden()
     assert len(db.messages(paper.id)) == 4
+
+
+def test_quick_questions_are_the_handouts_examples(page, db):
+    open_paper(page, db.add_paper())
+
+    expect(page.locator("#quick-questions button")).to_have_text(HANDOUT_QUESTIONS)
 
 
 # --- Bad links -----------------------------------------------------------------------------------

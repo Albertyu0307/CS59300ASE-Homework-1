@@ -262,6 +262,24 @@ def test_results_are_shown_even_when_the_library_cannot_be_loaded(page, arxiv, d
     assert len(db.papers()) == 1
 
 
+def test_openalex_result_shows_every_field_and_links_to_the_paper(page, openalex):
+    """hw1.pdf asks for the title, authors, year, abstract and a link to the paper. An OpenAlex result
+    links its title and "View paper" to the DOI, in a new tab, and "PDF" to the open-access copy."""
+    openalex.respond(200, json=openalex_response(openalex_work()))
+
+    page.goto("/index.html?q=residual&source=openalex")
+
+    card = page.locator(".paper-card")
+    expect(card.locator(".paper-title")).to_have_text("Deep Residual Learning")
+    expect(card.locator(".paper-meta")).to_have_text("Kaiming He, Xiangyu Zhang · 2016")
+    expect(card.locator(".paper-abstract")).to_have_text("Deeper networks are hard to networks")
+    title_link = card.locator(".paper-title a")
+    expect(title_link).to_have_attribute("href", "https://doi.org/10.1109/cvpr.2016.90")
+    expect(title_link).to_have_attribute("target", "_blank")
+    expect(card.get_by_role("link", name="View paper")).to_have_attribute("href", "https://doi.org/10.1109/cvpr.2016.90")
+    expect(card.get_by_role("link", name="PDF")).to_have_attribute("href", "https://example.org/resnet.pdf")
+
+
 def test_source_picker_works_when_local_storage_is_blocked(page, openalex):
     """Browsers that block site data make localStorage throw; the choice just isn't remembered."""
     page.add_init_script(

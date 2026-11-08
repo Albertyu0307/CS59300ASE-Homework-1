@@ -162,8 +162,10 @@ The tests run offline and never touch `backend/.env` or `backend/data/`. Each te
 | `tests/test_search_client.py`, `test_pdf_processor.py`, `test_metadata_extractor.py`, `test_llm_client.py`, `test_assistant_service.py` | the services on their own: arXiv/OpenAlex parsing, caching and fallback; PDF text extraction and rejection of damaged, locked or scanned files; metadata heuristics; LLM retries and backoff; prompts and truncation |
 | `tests/test_app.py` | health check, static frontend, startup, data kept after a restart, settings |
 | `tests/e2e/` | the three pages in a headless browser (Playwright): search, save, upload, delete, summary, questions, and the error messages for each |
+| `tests/test_requirements.py`, `tests/e2e/test_workflows.py` | each requirement of the assignment followed through the whole app: the demo's search → save → upload → summarize → ask workflow in the browser, everything kept after a restart, and the LLM getting the text of the paper's PDF rather than only its metadata |
+| `tests/test_repository.py` | the repository rules: no API key committed, `.env` ignored by Git, pinned and complete `requirements.txt`, README commands that match the project |
 
-[`backend/tests/TEST_CATALOG.md`](backend/tests/TEST_CATALOG.md) lists every test case, grouped by feature, with what it checks and the expected result.
+[`backend/tests/TEST_CATALOG.md`](backend/tests/TEST_CATALOG.md) lists every test case, grouped by feature, with what it checks and the expected result. Its "Handout coverage" table maps each requirement of the assignment to the tests that check it.
 
 Tests marked `xfail` record known weak spots (see the reasons in `pytest -rx`). If one starts passing after a fix, pytest reports it so its marker can be removed.
 

@@ -16,6 +16,24 @@ DEFAULT_BODY = (
     "We evaluate on the LongBench and SCROLLS datasets and compare against Longformer and BigBird. "
     "Our model improves accuracy by 2.1 points while using 40 percent less memory. "
 ) * 3
+# Only in DEFAULT_BODY, not in the default title or abstract: finding it in a prompt shows that the LLM
+# got the paper's text, not just its metadata. Compare against one_line(text), since PDF text keeps the
+# page's line breaks.
+BODY_ONLY_PHRASE = "LongBench and SCROLLS datasets"
+
+# The example questions of hw1.pdf, requirement 5.
+HANDOUT_QUESTIONS = [
+    "What problem does this paper address?",
+    "What is the main idea of the proposed approach?",
+    "What datasets are used?",
+    "What are the major limitations?",
+    "How does this method compare with the baselines?",
+]
+
+
+def one_line(text: str) -> str:
+    """text with every run of whitespace, line breaks included, turned into one space."""
+    return " ".join(text.split())
 
 
 def make_pdf(

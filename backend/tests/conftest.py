@@ -11,6 +11,7 @@
 """
 
 import atexit
+import json
 import os
 import shutil
 import tempfile
@@ -27,6 +28,7 @@ os.environ.update(
     DATA_DIR=_IMPORT_TIME_DATA_DIR,
 )
 
+import httpx  # noqa: E402
 import pytest  # noqa: E402
 import respx  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -36,7 +38,8 @@ from app import database  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import ChatMessage, Paper  # noqa: E402
-from app.services import llm_client, search_client  # noqa: E402
+from app.services import llm_client, prompts, search_client  # noqa: E402
+from tests.factories import completion  # noqa: E402
 
 LLM_URL = "https://llm.test/v1/chat/completions"
 
@@ -100,6 +103,37 @@ def real_llm(monkeypatch, sleeps):
     monkeypatch.setattr(settings, "llm_mock", False)
     monkeypatch.setattr(settings, "llm_api_key", "test-key")
     return sleeps
+
+
+class FakeLLMProvider:
+    """Stands in for the LLM provider at LLM_URL. It answers every request and keeps the messages
+    it was sent, so a test can check what the LLM got to read."""
+
+    SUMMARY = "## Problem\nA summary written by the fake provider."
+
+    def __init__(self) -> None:
+        self.requests: list[list[dict]] = []  # summary and question requests, in order
+        self.metadata_requests: list[list[dict]] = []  # uploads' metadata calls
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        messages = json.loads(request.content)["messages"]
+        if messages[0] == prompts.metadata_messages("")[0]:
+            self.metadata_requests.append(messages)
+            reply = "{}"  # no fields: the upload keeps its heuristic metadata
+        else:
+            self.requests.append(messages)
+            request_text = messages[-1]["content"]
+            reply = self.SUMMARY if request_text == prompts.SUMMARY_REQUEST else f"An answer to: {request_text}"
+        return httpx.Response(200, json=completion(reply))
+
+
+@pytest.fixture
+def llm_provider(http_mock, real_llm) -> FakeLLMProvider:
+    """The real client (LLM_MOCK=false) talking to a FakeLLMProvider: summaries are SUMMARY, and the
+    answer to a question is "An answer to: <question>"."""
+    provider = FakeLLMProvider()
+    http_mock.post(LLM_URL).mock(side_effect=provider)
+    return provider
 
 
 @pytest.fixture
