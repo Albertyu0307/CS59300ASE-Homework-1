@@ -78,9 +78,12 @@ def test_implausible_title_falls_back_to_the_pdf_title_field():
     assert meta.title == "A Proper Title From Info"
 
 
+# Each value is long enough (10+ characters, 2+ words) to pass as a title, so only the junk filter can
+# reject it: an authoring tool's name, a placeholder, or a file name. Too-short titles are #5's case.
 @pytest.mark.parametrize(
     "info_title",
-    ["Microsoft Word - paper.docx", "untitled", "main.tex", "Title", "paper_v3.pdf", "Short"],
+    ["Microsoft Word - paper.docx", "Untitled Document 3", "Title of the Submission", "camera ready main.tex",
+     "final paper v3.pdf", "Thesis Draft.docx"],
 )
 def test_junk_title_fields_fall_back_to_the_filename(info_title):
     meta = extract(info={"title": info_title}, filename="sparse_attention_2021.pdf")
@@ -384,6 +387,9 @@ def test_llm_gets_the_start_of_the_paper_and_one_retry(llm_reply):
         {"year": 2019.5},
         {"abstract": "Too short."},
         {"unexpected": "keys"},
+        {"authors": [{"name": "Alice Smith"}, 42]},  # objects and numbers, not names
+        {"title": ["Attention Is", "All You Need"]},  # a list, not a string
+        {"abstract": {"text": ABSTRACT}},  # an object, not a string
     ],
 )
 def test_implausible_llm_values_keep_the_heuristic_ones(llm_reply, reply):

@@ -47,16 +47,21 @@ def save_upload(session: Session, filename: str, data: bytes) -> Paper:
     content = pdf_processor.read_pdf(data)
     meta = metadata_extractor.extract_metadata(content, filename)
 
+    # Refused if the same file was uploaded before (keyed by its hash, like a repeated save), or if
+    # the PDF's arXiv paper is already saved. Both keys are checked, before the arXiv lookup and the
+    # LLM call, because which one a paper is stored under depends on whether arXiv could be reached:
+    # a PDF from arXiv uploaded during an outage is stored under its hash.
+    external_id = hashlib.sha256(data).hexdigest()
+    _ensure_not_saved(session, "upload", external_id)
+    if meta.arxiv_id:
+        _ensure_not_saved(session, "arxiv", meta.arxiv_id)
+
     # A PDF from arXiv carries its ID. Then it is that arXiv paper, with arXiv's exact metadata
     # (no heuristics, no LLM), and it dedupes against the same paper saved from search.
     arxiv = search_client.fetch_arxiv_paper(meta.arxiv_id) if meta.arxiv_id else None
     if arxiv:
         paper = Paper(**arxiv.model_dump())
-        _ensure_not_saved(session, paper.source, paper.external_id)
     else:
-        # Keyed by the file's hash, so uploading the same file twice is refused like a repeated save.
-        external_id = hashlib.sha256(data).hexdigest()
-        _ensure_not_saved(session, "upload", external_id)  # before spending an LLM call
         meta = metadata_extractor.improve_with_llm(content, meta)
         paper = Paper(
             source="upload",

@@ -1,6 +1,7 @@
 """The library API: save a search result, upload a PDF, list, get, delete, serve the stored PDF."""
 
 import hashlib
+import pathlib
 
 import httpx
 import pytest
@@ -222,6 +223,32 @@ def test_arxiv_pdf_upload_matches_the_same_paper_saved_from_search(client, http_
     assert stored_pdfs() == []
 
 
+def test_arxiv_pdf_uploaded_during_an_outage_is_refused_when_uploaded_again(client, http_mock, stored_pdfs):
+    """The first upload is stored under the file's hash (arXiv unreachable), the second would be
+    stored under the arXiv ID (arXiv back): still the same paper."""
+    abs_page = http_mock.get("https://arxiv.org/abs/2103.01234")
+    pdf = make_pdf(arxiv_stamp="arXiv:2103.01234v2 [cs.CL] 5 Mar 2021")
+    abs_page.mock(side_effect=httpx.ConnectError("offline"))
+    assert upload(client, pdf).status_code == 201
+
+    abs_page.mock(side_effect=None, return_value=httpx.Response(200, text=arxiv_abs_page()))
+    response = upload(client, pdf)
+
+    assert response.status_code == 409
+    assert len(client.get("/api/papers").json()) == 1
+    assert len(stored_pdfs()) == 1
+
+
+def test_arxiv_pdf_uploaded_during_an_outage_matches_the_paper_saved_from_search(client, http_mock, stored_pdfs):
+    http_mock.get("https://arxiv.org/abs/2103.01234").mock(side_effect=httpx.ConnectError("offline"))
+    client.post("/api/papers", json=search_result(external_id="2103.01234", pdf_url=None))
+
+    response = upload(client, make_pdf(arxiv_stamp="arXiv:2103.01234v1 [cs.CL] 2 Mar 2021"))
+
+    assert response.status_code == 409
+    assert stored_pdfs() == []
+
+
 def test_upload_uses_the_llm_for_metadata_when_enabled(client, http_mock, real_llm):
     llm = http_mock.post(LLM_URL).respond(200, json=completion(
         '```json\n{"title": "The Real Title From the LLM", "authors": ["Alice Smith", "Robert Jones"], '
@@ -249,10 +276,11 @@ def test_upload_still_works_when_the_llm_fails(client, http_mock, real_llm):
 def test_duplicate_upload_is_refused_before_spending_an_llm_call(client, http_mock, real_llm):
     llm = http_mock.post(LLM_URL).respond(200, json=completion("{}"))
     pdf = make_pdf()
-    upload(client, pdf)
+    assert upload(client, pdf).status_code == 201
 
-    upload(client, pdf)
+    response = upload(client, pdf)
 
+    assert response.status_code == 409
     assert llm.call_count == 1
 
 
@@ -416,6 +444,35 @@ def test_delete_works_when_the_pdf_file_is_already_gone(client, stored_pdfs):
     stored_pdfs()[0].unlink()
 
     assert client.delete(f"/api/papers/{paper['id']}").status_code == 204
+
+
+def test_delete_keeps_the_pdfs_of_other_papers(client, stored_pdfs):
+    keep_pdf = make_pdf(title=("A Different Paper", "That Should Stay"))
+    keep = upload(client, keep_pdf).json()
+    remove = upload(client, make_pdf()).json()
+
+    assert client.delete(f"/api/papers/{remove['id']}").status_code == 204
+
+    response = client.get(f"/api/papers/{keep['id']}/pdf")
+    assert response.status_code == 200
+    assert response.content == keep_pdf
+    assert len(stored_pdfs()) == 1
+
+
+def test_delete_works_when_the_pdf_file_cannot_be_removed(client, db, stored_pdfs, monkeypatch):
+    """Windows refuses to delete a file that is open elsewhere (e.g. in a PDF viewer); it is left behind."""
+    paper = upload(client, make_pdf()).json()
+
+    def locked(self, missing_ok=False):
+        raise PermissionError("The process cannot access the file because it is being used by another process")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(pathlib.Path, "unlink", locked)
+        response = client.delete(f"/api/papers/{paper['id']}")
+
+    assert response.status_code == 204
+    assert db.paper(paper["id"]) is None
+    assert len(stored_pdfs()) == 1  # left behind
 
 
 def test_deleting_twice_gives_404_the_second_time(client, db):

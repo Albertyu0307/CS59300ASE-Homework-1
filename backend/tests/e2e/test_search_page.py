@@ -141,16 +141,28 @@ def test_results_already_in_the_library_are_marked_saved(page, arxiv, db):
     expect(cards.nth(1).get_by_role("button", name="Save to library")).to_be_enabled()
 
 
-def test_failed_save_shows_the_error_and_can_be_retried(page, arxiv):
+def test_failed_save_shows_the_error_and_can_be_retried(page, arxiv, db):
     arxiv.respond(200, text=arxiv_feed(arxiv_entry(pdf=False)))
-    page.route("**/api/papers", lambda route: route.fulfill(status=500, json={"detail": "Database is locked"})
-               if route.request.method == "POST" else route.continue_())
+    fail_once = [True]
+
+    def first_save_fails(route):
+        if route.request.method == "POST" and fail_once:
+            fail_once.pop()
+            route.fulfill(status=500, json={"detail": "Database is locked"})
+        else:
+            route.continue_()
+
+    page.route("**/api/papers", first_save_fails)
     search(page, "graph")
+    save = page.get_by_role("button", name="Save to library")
 
-    page.get_by_role("button", name="Save to library").click()
-
+    save.click()
     expect(page.locator(".save-control .error")).to_have_text("Save failed: Database is locked")
-    expect(page.get_by_role("button", name="Save to library")).to_be_enabled()
+    expect(save).to_be_enabled()
+    save.click()  # the retry reaches the backend this time
+
+    expect(page.get_by_role("button", name="Saved")).to_be_disabled()
+    assert len(db.papers()) == 1
 
 
 def test_save_refused_as_duplicate_counts_as_saved(page, arxiv):
@@ -175,7 +187,9 @@ def test_long_abstract_can_be_expanded_and_collapsed(page, arxiv):
     expect(abstract).to_have_class(re.compile(r"\bcollapsed\b"))
     toggle.click()
     expect(abstract).not_to_have_class(re.compile(r"\bcollapsed\b"))
-    expect(page.get_by_role("button", name="Show less")).to_be_visible()
+    page.get_by_role("button", name="Show less").click()
+    expect(abstract).to_have_class(re.compile(r"\bcollapsed\b"))
+    expect(page.get_by_role("button", name="Show more")).to_be_visible()
 
 
 def test_short_abstract_has_no_toggle(page, arxiv):

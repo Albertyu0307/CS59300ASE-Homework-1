@@ -57,7 +57,10 @@ def test_unknown_paths_return_404(client, path):
     assert client.get(path).status_code == 404
 
 
-@pytest.mark.parametrize("path", ["/%2e%2e/backend/app/config.py", "/..%2f..%2fbackend%2f.env.example", "/js/%2e%2e/%2e%2e/README.md"])
+# The dots are percent-encoded because the client would collapse a literal "/../" before sending it.
+# Each path resolves to a real file outside frontend/ (frontend/../backend/..., frontend/js/../../README.md),
+# so the 404 can only come from the static mount's traversal check, not from a missing file.
+@pytest.mark.parametrize("path", ["/%2e%2e/backend/app/config.py", "/..%2fbackend%2f.env.example", "/js/%2e%2e/%2e%2e/README.md"])
 def test_files_outside_the_frontend_folder_are_not_served(client, path):
     response = client.get(path)
 
@@ -71,13 +74,20 @@ def test_dot_dot_inside_the_frontend_folder_still_resolves(client):
 
 
 def test_api_routes_take_precedence_over_the_static_mount(client):
-    """The static mount at "/" is registered last, so every API route is still reachable."""
+    """The static mount at "/" is registered last, so every API route is still reachable.
+
+    /openapi.json lists a route even when the mount swallows its requests, and the mount's 404 is
+    JSON too ({"detail": "Not Found"}), so each router's own answer is what's checked.
+    """
     paths = client.get("/openapi.json").json()["paths"]
 
     assert {"/api/health", "/api/search", "/api/papers", "/api/papers/upload", "/api/papers/{paper_id}",
             "/api/papers/{paper_id}/pdf", "/api/papers/{paper_id}/summary", "/api/papers/{paper_id}/ask",
             "/api/papers/{paper_id}/messages"} <= set(paths)
-    assert client.get("/api/papers").headers["content-type"] == "application/json"
+    assert client.get("/api/health").json() == {"status": "ok"}  # main.py
+    assert client.get("/api/search").status_code == 422  # search router: q is missing, so nothing is sent to arXiv
+    assert client.get("/api/papers").json() == []  # papers router
+    assert client.get("/api/papers/999/summary").json() == {"detail": "Paper not found. It may have been deleted."}  # assistant router
 
 
 def test_startup_creates_the_data_folder_and_tables(tmp_path, monkeypatch):
@@ -117,7 +127,8 @@ def test_absolute_data_dir_is_used_as_is(tmp_path):
 
 
 def test_settings_default_to_mock_mode_and_gemini(monkeypatch):
-    for name in ("LLM_MOCK", "LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY"):
+    # conftest.py sets all of these for the test run, and environment variables beat the defaults.
+    for name in ("LLM_MOCK", "LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "LLM_MAX_PAPER_CHARS"):
         monkeypatch.delenv(name, raising=False)
 
     defaults = Settings(_env_file=None)
@@ -125,4 +136,5 @@ def test_settings_default_to_mock_mode_and_gemini(monkeypatch):
     assert defaults.llm_mock is True  # works out of the box with no key
     assert defaults.llm_api_key == ""
     assert "generativelanguage.googleapis.com" in defaults.llm_base_url
+    assert defaults.llm_model.startswith("gemini-")
     assert defaults.llm_max_paper_chars == 200_000

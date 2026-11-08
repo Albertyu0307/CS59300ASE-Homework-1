@@ -29,6 +29,7 @@ RETRY_DELAYS_SECONDS = (3, 8, 20)
 # When the provider asks for a longer wait than this, give up and tell the user instead.
 MAX_RETRY_WAIT_SECONDS = 30
 MOCK_DELAY_SECONDS = 0.8  # long enough to see the UI's loading state
+_UNEXPECTED_FORMAT = "The LLM returned a response in an unexpected format."
 
 _THINKING = re.compile(r"^\s*<think>.*?</think>\s*", re.DOTALL)  # some open models think out loud
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
@@ -156,7 +157,11 @@ def _reply_text(response: httpx.Response) -> str:
     try:
         content = response.json()["choices"][0]["message"]["content"]
     except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise LLMError("The LLM returned a response in an unexpected format.") from exc
+        raise LLMError(_UNEXPECTED_FORMAT) from exc
+    # The OpenAI format has a string here (or null). Anything else, e.g. a list of content parts,
+    # would otherwise crash the regex below with a TypeError, which reaches the user as a bare HTTP 500.
+    if content is not None and not isinstance(content, str):
+        raise LLMError(_UNEXPECTED_FORMAT)
     text = _THINKING.sub("", content or "").strip()
     if not text:
         raise LLMError("The LLM returned an empty answer. Try again.")

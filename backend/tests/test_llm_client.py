@@ -92,8 +92,10 @@ def test_empty_reply_is_an_error(provider, content):
         httpx.Response(200, json={"choices": [{"message": {}}]}),
         httpx.Response(200, json=["not", "an", "object"]),
         httpx.Response(200, text="<html>proxy page</html>"),
+        httpx.Response(200, json={"choices": [{"message": {"content": [{"type": "text", "text": "Hi."}]}}]}),
+        httpx.Response(200, json={"choices": [{"message": {"content": 42}}]}),
     ],
-    ids=["no-choices", "no-choices-key", "no-content", "list-body", "not-json"],
+    ids=["no-choices", "no-choices-key", "no-content", "list-body", "not-json", "content-parts-list", "content-number"],
 )
 def test_malformed_reply_is_an_error(provider, response):
     provider.mock(side_effect=[response])

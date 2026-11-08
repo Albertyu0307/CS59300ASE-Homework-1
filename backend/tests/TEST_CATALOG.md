@@ -1,26 +1,26 @@
 # Test catalog
 
-Every automated test, grouped by feature: 412 test cases in 39 groups and 9 areas.
+Every automated test, grouped by feature: 423 test cases in 39 groups and 9 areas.
 For how to run them and how they are set up, see "Running the tests" in the [README](../../README.md).
 
 - The group and test numbers are only for this catalog (e.g. "group 17, #4"); they aren't in the code.
 - "(×N: …)" means one test function that runs N cases (`@pytest.mark.parametrize`).
 - **xfail** marks a test for a known bug: it is expected to fail until the bug is fixed.
-- Last checked on 2026-11-04: 408 passed, 4 xfailed. `pytest --collect-only -q` lists every case.
+- Last checked on 2026-11-08: 419 passed, 4 xfailed. `pytest --collect-only -q` lists every case.
   When tests are added or removed, update this file and the counts.
 
 | Area | Groups | Test cases |
 |---|---|---|
 | A. App and infrastructure | 1–3 | 24 |
 | B. Search | 4–10 | 60 |
-| C. Library API | 11–15 | 57 |
-| D. LLM features through the API | 16–18 | 36 |
-| E. LLM client | 19–22 | 51 |
+| C. Library API | 11–15 | 61 |
+| D. LLM features through the API | 16–18 | 37 |
+| E. LLM client | 19–22 | 53 |
 | F. PDF processing | 23–25 | 30 |
-| G. Metadata extraction for uploads | 26–31 | 80 |
+| G. Metadata extraction for uploads | 26–31 | 83 |
 | H. Prompts and paper text | 32–33 | 20 |
-| I. Frontend in a real browser | 34–39 | 54 |
-| **Total** | **39** | **412** |
+| I. Frontend in a real browser | 34–39 | 55 |
+| **Total** | **39** | **423** |
 
 ---
 
@@ -33,11 +33,11 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 3. `test_frontend_scripts_are_served_as_javascript` (×5: the 5 `.js` files): each returns 200 with a JavaScript content type, which ES modules require.
 4. `test_stylesheet_is_served`: `style.css` returns 200 as `text/css`.
 5. `test_unknown_paths_return_404` (×3: missing page, missing script, missing API route): each returns 404.
-6. `test_api_routes_take_precedence_over_the_static_mount`: all 9 API routes are registered, and `/api/papers` answers JSON, so the frontend mount at `/` didn't swallow them.
+6. `test_api_routes_take_precedence_over_the_static_mount`: all 9 API routes are registered, and one route of each router (health, search, papers, assistant) gives that router's own answer rather than the static mount's `404 {"detail": "Not Found"}`, so the frontend mount at `/` didn't swallow them.
 
 ### 2. Path traversal (4 cases)
 **What they test:** whether URLs containing `..` can read files outside `frontend/`.
-1. `test_files_outside_the_frontend_folder_are_not_served` (×3 encoded `../` paths to `config.py`, `.env.example`, `README.md`): each returns 404, and none of the file's text leaks.
+1. `test_files_outside_the_frontend_folder_are_not_served` (×3 encoded `../` paths to `config.py`, `.env.example`, `README.md`, each resolving to a real file outside `frontend/`): each returns 404, and none of the file's text leaks.
 2. `test_dot_dot_inside_the_frontend_folder_still_resolves`: `/js/%2e%2e/index.html` returns 200. This is the control: it shows the server does decode `..`, so the 404s above are real refusals.
 
 ### 3. Startup, persistence, settings (5 cases)
@@ -46,7 +46,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 2. `test_saved_papers_survive_a_restart`: a saved paper is still listed after reconnecting to the same database file.
 3. `test_relative_data_dir_is_resolved_against_the_backend_folder`: `DATA_DIR=./data` resolves to `backend/data`.
 4. `test_absolute_data_dir_is_used_as_is`: an absolute path is left unchanged.
-5. `test_settings_default_to_mock_mode_and_gemini`: with no `.env`, mock mode is on, the key is empty, the URL is Gemini's, and the limit is 200,000 characters.
+5. `test_settings_default_to_mock_mode_and_gemini`: with no `.env` and none of the test run's `LLM_*` environment variables, mock mode is on, the key is empty, the URL and the model are Gemini's, and the limit is 200,000 characters.
 
 ---
 
@@ -112,7 +112,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## C. Library API (`test_api_papers.py`): 57 cases
+## C. Library API (`test_api_papers.py`): 61 cases
 
 ### 11. Saving search results (20 cases)
 **What they test:** `POST /api/papers`: downloading the PDF, handling download failures, and preventing duplicates.
@@ -126,7 +126,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 8. `test_client_cannot_set_server_side_fields`: `full_text`, `summary`, `text_status` and `id` in the request body are ignored.
 9. `test_invalid_search_result_is_rejected_with_422` (×7: missing or wrong fields): returns 422, and nothing is saved.
 
-### 12. Uploading PDFs: success paths (9 cases)
+### 12. Uploading PDFs: success paths (11 cases)
 **What they test:** that `POST /api/papers/upload` extracts text and metadata, and recognizes arXiv papers.
 1. `test_upload_extracts_text_and_metadata`: returns 201 with source `upload`, the SHA-256 as the ID, title, authors, year 2019 (from the header), abstract and full text.
 2. `test_upload_filename_extension_is_case_insensitive`: `PAPER.PDF` returns 201.
@@ -136,7 +136,9 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 6. `test_arxiv_pdf_upload_matches_the_same_paper_saved_from_search`: returns 409.
 7. `test_upload_uses_the_llm_for_metadata_when_enabled`: one LLM call; its title, authors and year win, and the abstract stays heuristic because the LLM returned `null`.
 8. `test_upload_still_works_when_the_llm_fails`: returns 201 with the heuristic metadata.
-9. `test_duplicate_upload_is_refused_before_spending_an_llm_call`: two uploads of the same file make one LLM call.
+9. `test_duplicate_upload_is_refused_before_spending_an_llm_call`: the second upload of the same file returns 409, and only one LLM call is made.
+10. `test_arxiv_pdf_uploaded_during_an_outage_is_refused_when_uploaded_again`: a stamped PDF uploaded while arXiv is unreachable (so stored under its hash) returns 409 when uploaded again with arXiv back; one paper and one file remain.
+11. `test_arxiv_pdf_uploaded_during_an_outage_matches_the_paper_saved_from_search`: with arXiv unreachable, a stamped PDF of a paper already saved from search returns 409.
 
 ### 13. Upload rejections (13 cases)
 **What they test:** that bad files are refused with the right status code and a clear reason.
@@ -158,17 +160,19 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 8. `test_pdf_whose_file_was_removed_from_disk_is_404`: returns 404.
 9. `test_pdf_of_a_missing_paper_is_404`: returns 404.
 
-### 15. Deleting (5 cases)
+### 15. Deleting (7 cases)
 **What they test:** that `DELETE` removes everything belonging to the paper and nothing else.
 1. `test_delete_removes_the_paper_its_pdf_and_its_chat`: returns 204; the paper, its PDF file and its chat messages are gone.
 2. `test_delete_leaves_other_papers_alone`: other papers and their chats are untouched.
 3. `test_delete_works_when_the_pdf_file_is_already_gone`: still returns 204.
 4. `test_deleting_twice_gives_404_the_second_time`: the second delete returns 404.
 5. `test_deleted_paper_can_be_saved_again`: returns 201.
+6. `test_delete_keeps_the_pdfs_of_other_papers`: after deleting one of two uploads, the other's PDF is still stored and served.
+7. `test_delete_works_when_the_pdf_file_cannot_be_removed`: when the file can't be deleted (on Windows, e.g. while it's open in a PDF viewer), the delete still returns 204 and removes the paper; the file is left behind.
 
 ---
 
-## D. LLM features through the API (`test_api_assistant.py`): 36 cases
+## D. LLM features through the API (`test_api_assistant.py`): 37 cases
 
 ### 16. Summary (10 cases)
 **What they test:** generating, caching and describing a paper's summary.
@@ -196,7 +200,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 9. `test_question_about_a_paper_without_text_is_422`: returns 422, and nothing is stored.
 10. `test_llm_endpoints_of_a_missing_paper_are_404` (×4: both summary endpoints, ask, messages): each returns 404.
 
-### 18. LLM failures through the API (9 cases)
+### 18. LLM failures through the API (10 cases)
 **What they test:** that provider failures become clear HTTP errors and nothing half-finished is saved.
 1. `test_llm_failures_become_friendly_http_errors` (×6), for both summary and ask, with nothing cached or recorded:
    - daily quota: 429 "…used up. Try again tomorrow."
@@ -207,12 +211,13 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 2. `test_unconfigured_llm_is_503`: with no `LLM_BASE_URL`, returns 503 "The LLM is not configured…".
 3. `test_real_llm_answer_is_returned_and_stored`: the `<think>` block is removed, the answer is stored, and the API key is sent.
 4. `test_transient_llm_overload_is_retried_before_answering`: a 503 followed by success returns 200 after one 3 s wait.
+5. `test_failed_refresh_keeps_the_old_summary`: a failed `?refresh=true` returns 502, and the cached summary is kept.
 
 ---
 
-## E. LLM client (`test_llm_client.py`): 51 cases
+## E. LLM client (`test_llm_client.py`): 53 cases
 
-### 19. Mock mode, request and reply (15 cases)
+### 19. Mock mode, request and reply (17 cases)
 **What they test:** how the client builds the request and reads the provider's reply.
 1. `test_mock_mode_returns_canned_markdown_without_any_request`: returns "**Mock answer:**…" quoting the first line of the question.
 2. `test_mock_mode_json_is_an_empty_object`: returns `{}`.
@@ -221,7 +226,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 5. `test_no_authorization_header_for_keyless_providers`: no header is sent.
 6. `test_thinking_section_is_removed_from_the_reply`: `<think>…</think>` is stripped.
 7. `test_empty_reply_is_an_error` (×4: empty, whitespace, null, only thinking): raises "The LLM returned an empty answer."
-8. `test_malformed_reply_is_an_error` (×5: missing choices or content, a list, not JSON): raises "unexpected format".
+8. `test_malformed_reply_is_an_error` (×7: missing choices or content, a list, not JSON, content that is a list of parts or a number): raises "unexpected format" instead of crashing.
 
 ### 20. JSON replies (7 cases)
 **What they test:** pulling a JSON object out of a model's reply (used for upload metadata).
@@ -285,7 +290,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## G. Metadata extraction for uploads (`test_metadata_extractor.py`): 80 cases
+## G. Metadata extraction for uploads (`test_metadata_extractor.py`): 83 cases
 
 ### 26. Title (14 cases)
 **What they test:** finding the title on page 1, and the fallbacks when none is found.
@@ -294,7 +299,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 3. `test_title_stops_at_a_large_vertical_gap`: a distant 18 pt heading isn't added to the title.
 4. `test_title_ignores_text_that_cannot_be_a_title` (×3: big text in the bottom half, "ACM" with under 4 letters, rotated text): the real title still wins.
 5. `test_implausible_title_falls_back_to_the_pdf_title_field`: "Draft" is replaced by the PDF's title field.
-6. `test_junk_title_fields_fall_back_to_the_filename` (×6: "Microsoft Word - paper.docx", "untitled", "main.tex", …): the filename (without `.pdf`) is used instead.
+6. `test_junk_title_fields_fall_back_to_the_filename` (×6: "Microsoft Word - paper.docx", "Untitled Document 3", "camera ready main.tex", …, each long enough to pass as a title): the junk filter rejects them, and the filename (without `.pdf`) is used instead.
 7. `test_no_usable_title_and_no_filename_gives_a_placeholder`: "Untitled paper".
 
 ### 27. Authors (16 cases)
@@ -336,12 +341,12 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 2. `test_generated_arxiv_paper`: ID `1912.00001` and year 2019.
 3. `test_paper_with_no_detectable_metadata_uses_the_filename`: title "My Notes", no authors, no abstract.
 
-### 31. LLM improvement of metadata (19 cases)
+### 31. LLM improvement of metadata (22 cases)
 **What they test:** when the LLM's values replace the heuristic ones.
 1. `test_mock_llm_leaves_the_heuristics_unchanged`: nothing changes in mock mode.
 2. `test_llm_values_replace_the_heuristic_ones`: plausible LLM values replace all four fields.
 3. `test_llm_gets_the_start_of_the_paper_and_one_retry`: the LLM gets the first 8000 characters, with `retries=1`.
-4. `test_implausible_llm_values_keep_the_heuristic_ones` (×12: a too-short or too-long title, nulls, authors as a string, empty or blank names, years 1850 / two years ahead / "unknown" / 2019.5, a short abstract, unknown keys): the heuristics stay unchanged.
+4. `test_implausible_llm_values_keep_the_heuristic_ones` (×15: a too-short or too-long title, nulls, authors as a string, empty or blank names, years 1850 / two years ahead / "unknown" / 2019.5, a short abstract, unknown keys, and values that aren't strings: authors as objects and numbers, a title as a list, an abstract as an object): the heuristics stay unchanged.
 5. `test_llm_author_names_are_cleaned`: whitespace is collapsed, and blanks, duplicates and names over 100 characters are dropped.
 6. `test_llm_year_as_a_string_is_accepted`: "2019" becomes 2019.
 7. `test_llm_failure_keeps_the_heuristics`: on an LLM error, the heuristics are kept.
@@ -374,7 +379,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## I. Frontend in a real browser (`tests/e2e/`): 54 cases
+## I. Frontend in a real browser (`tests/e2e/`): 55 cases
 
 ### 34. Search page (17 cases)
 **What they test:** what a user sees and can do on `index.html`.
@@ -388,9 +393,9 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 8. `test_saving_a_result_downloads_its_pdf`: the button turns into a disabled "Saved" with an "Open in library" link.
 9. `test_saving_a_result_without_a_pdf_warns_about_it`: shows "Abstract only: no PDF available".
 10. `test_results_already_in_the_library_are_marked_saved`: "Saved" is shown on page load.
-11. `test_failed_save_shows_the_error_and_can_be_retried`: shows "Save failed: Database is locked", and the button is enabled again.
+11. `test_failed_save_shows_the_error_and_can_be_retried`: shows "Save failed: Database is locked", the button is enabled again, and a second click saves the paper.
 12. `test_save_refused_as_duplicate_counts_as_saved`: a 409 shows "Saved" with a link to the library.
-13. `test_long_abstract_can_be_expanded_and_collapsed`: "Show more" toggles to "Show less".
+13. `test_long_abstract_can_be_expanded_and_collapsed`: "Show more" expands the abstract, and "Show less" collapses it again.
 14. `test_short_abstract_has_no_toggle`: no button.
 15. `test_result_without_authors_or_year_or_abstract`: "Unknown authors · Year unknown" and "No abstract available."
 16. `test_long_author_lists_are_shortened`: 6 names plus "et al. (9 authors)".
@@ -426,7 +431,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 3. `test_paper_without_any_text_offers_no_llm_features`: a note; Summarize, the quick questions and the question box are marked hidden.
 4. `test_paper_without_any_text_hides_its_controls_even_without_the_cdn`: **xfail (known bug).** When Pico.css can't load, the quick-question buttons stay visible.
 
-### 38. Paper page: questions and answers (6 cases)
+### 38. Paper page: questions and answers (7 cases)
 **What they test:** asking questions in the chat section.
 1. `test_asking_a_typed_question`: "You" and "Assistant" messages appear, the box is cleared, and 2 messages are saved.
 2. `test_enter_sends_and_shift_enter_adds_a_line`: a two-line question is sent with Enter.
@@ -434,6 +439,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 4. `test_blank_question_is_not_sent`: nothing happens.
 5. `test_earlier_questions_are_shown_when_the_page_opens`: the 4 earlier messages appear in order.
 6. `test_failed_question_is_kept_for_a_retry`: an error message; the question disappears from the chat but stays in the box; nothing is saved.
+7. `test_a_second_question_waits_for_the_first`: pressing Enter again while a question is being answered sends nothing: one request, two stored messages.
 
 ### 39. Paper page: bad links and Markdown (7 cases)
 **What they test:** broken page links, and how LLM answers are rendered.

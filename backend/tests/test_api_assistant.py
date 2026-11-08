@@ -261,6 +261,18 @@ def test_llm_failures_become_friendly_http_errors(
     assert db.messages(paper.id) == []  # nothing recorded, so the question can be retried
 
 
+def test_failed_refresh_keeps_the_old_summary(client, db, http_mock, real_llm):
+    """Regenerate is the one action that risks an existing summary, e.g. once the daily quota is used up."""
+    http_mock.post(LLM_URL).respond(400, json={"error": {"message": "Invalid model name"}})  # 400: not retried
+    paper = db.add_paper(summary="The old summary.")
+
+    response = client.post(f"/api/papers/{paper.id}/summary", params={"refresh": "true"})
+
+    assert response.status_code == 502
+    assert db.paper(paper.id).summary == "The old summary."
+    assert client.get(f"/api/papers/{paper.id}/summary").json()["summary"] == "The old summary."
+
+
 def test_unconfigured_llm_is_503(client, db, real_llm, monkeypatch):
     monkeypatch.setattr(settings, "llm_base_url", "")
     paper = db.add_paper()

@@ -5,6 +5,7 @@ import re
 import pytest
 
 from app.config import settings
+from app.services import llm_client
 from tests.conftest import LLM_URL
 from tests.factories import completion
 
@@ -222,6 +223,25 @@ def test_failed_question_is_kept_for_a_retry(page, db, http_mock, real_llm):
     expect(page.locator("#question")).to_have_value("Will this work?")
     expect(page.get_by_role("button", name="Ask", exact=True)).to_be_enabled()
     assert db.messages(paper.id) == []
+
+
+def test_a_second_question_waits_for_the_first(page, db, monkeypatch):
+    """Enter submits with requestSubmit(), which ignores the disabled Ask button, and the question stays
+    in the box until it is answered: only the page's "asking" flag stops a second LLM call."""
+    monkeypatch.setattr(llm_client, "MOCK_DELAY_SECONDS", 1.0)  # the server runs in this process
+    paper = db.add_paper()
+    open_paper(page, paper)
+    asks = []
+    page.on("request", lambda request: asks.append(request.url) if request.url.endswith("/ask") else None)
+
+    page.fill("#question", "First question?")
+    page.locator("#question").press("Enter")
+    page.locator("#question").press("Enter")
+
+    expect(page.locator(".chat-message.assistant")).to_have_count(1)
+    page.wait_for_timeout(1500)  # time for a second answer, if a second question was sent
+    assert len(asks) == 1
+    assert len(db.messages(paper.id)) == 2
 
 
 # --- Bad links -----------------------------------------------------------------------------------
