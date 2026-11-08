@@ -91,6 +91,22 @@ def test_summary_failure_is_explained(page, db, http_mock, real_llm):
     expect(page.locator("#summary-button")).to_have_text("Summarize")
 
 
+def test_summary_that_cannot_be_loaded_is_explained(page, db):
+    """The summary info is loaded separately from the paper; when it fails, Summarize still works."""
+    paper = db.add_paper(summary="A cached summary.")
+    page.route(re.compile(r".*/api/papers/\d+/summary$"), lambda route: route.fulfill(status=500, json={"detail": "Database is locked"})
+               if route.request.method == "GET" else route.continue_())
+
+    open_paper(page, paper)
+
+    expect(page.locator("#summary-status")).to_have_text("Could not load the summary: Database is locked")
+    expect(page.locator("#summary-status")).to_have_class(re.compile(r"\berror\b"))
+    expect(page.locator(".paper-title")).to_have_text(paper.title)
+    page.click("#summary-button")
+    expect(page.locator("#summary")).to_have_text("A cached summary.")  # the stored one: no LLM call
+    expect(page.locator("#summary-status")).to_be_hidden()
+
+
 # --- What the LLM gets to see ---------------------------------------------------------------------
 
 
@@ -242,6 +258,23 @@ def test_a_second_question_waits_for_the_first(page, db, monkeypatch):
     page.wait_for_timeout(1500)  # time for a second answer, if a second question was sent
     assert len(asks) == 1
     assert len(db.messages(paper.id)) == 2
+
+
+def test_chat_history_that_cannot_be_loaded_is_explained(page, db):
+    """The earlier questions are missing, but new ones can still be asked."""
+    paper = db.add_paper()
+    db.add_messages(paper.id, "Earlier question?", "Earlier answer.")
+    page.route(re.compile(r".*/api/papers/\d+/messages$"), lambda route: route.fulfill(status=500, json={"detail": "Database is locked"}))
+
+    open_paper(page, paper)
+
+    expect(page.locator("#chat-status")).to_have_text("Could not load the earlier questions: Database is locked")
+    expect(page.locator(".chat-message")).to_have_count(0)
+    page.fill("#question", "New question?")
+    page.locator("#question").press("Enter")
+    expect(page.locator(".chat-message")).to_have_count(2)
+    expect(page.locator("#chat-status")).to_be_hidden()
+    assert len(db.messages(paper.id)) == 4
 
 
 # --- Bad links -----------------------------------------------------------------------------------

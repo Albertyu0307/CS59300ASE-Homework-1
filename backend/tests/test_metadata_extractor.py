@@ -95,6 +95,30 @@ def test_no_usable_title_and_no_filename_gives_a_placeholder():
     assert extract(filename="").title == "Untitled paper"
 
 
+@pytest.mark.parametrize(
+    "title, plausible",
+    [
+        ("Graph Nets", True),  # 10 characters: the shortest title accepted
+        ("Graph Net", False),  # 9
+        ("Attention " + "x" * 290, True),  # 300 characters: the longest
+        ("Attention " + "x" * 291, False),  # 301
+        ("Transformers", False),  # a single word, however long
+    ],
+    ids=["10-chars", "9-chars", "300-chars", "301-chars", "one-word"],
+)
+def test_title_length_limits(title, plausible):
+    meta = extract(line(title, 80, size=18), filename="fallback name.pdf")
+
+    assert meta.title == (title if plausible else "fallback name")
+
+
+@pytest.mark.parametrize("gap, joined", [(36, True), (37, False)], ids=["2x-font-size", "just-over"])
+def test_next_title_line_may_be_up_to_twice_the_font_size_below(gap, joined):
+    meta = extract(line("Learning Sparse Attention", 80, size=18), line("Patterns at Scale", 80 + gap, size=18))
+
+    assert meta.title == ("Learning Sparse Attention Patterns at Scale" if joined else "Learning Sparse Attention")
+
+
 # --- Authors -------------------------------------------------------------------------------------
 
 
@@ -157,6 +181,22 @@ def test_author_list_is_capped():
     assert len(extract(TITLE, info={"author": names}).authors) == metadata_extractor.MAX_AUTHORS
 
 
+@pytest.mark.parametrize(
+    "name, is_name",
+    [
+        ("Alice Smith", True),  # 2 words: the fewest
+        ("Maria Luisa de la Cruz", True),  # 5 words: the most
+        ("Maria Luisa de la Cruz Garcia", False),  # 6
+        ("Alice", False),  # 1
+        ("A" + "a" * 28 + " B" + "b" * 29, True),  # 60 characters: the longest
+        ("A" + "a" * 28 + " B" + "b" * 30, False),  # 61
+    ],
+    ids=["2-words", "5-words", "6-words", "1-word", "60-chars", "61-chars"],
+)
+def test_author_name_limits(name, is_name):
+    assert extract(TITLE, info={"author": name}).authors == ([name] if is_name else [])
+
+
 # --- Year ----------------------------------------------------------------------------------------
 
 
@@ -217,6 +257,20 @@ def test_header_year_wins_over_the_creation_date():
 
 def test_no_year_found():
     assert extract(TITLE, line("Alice Smith", 110), info={"creationDate": "yesterday"}).year is None
+
+
+def test_future_year_in_the_subject_field_falls_back_to_the_creation_date():
+    future = date.today().year + 5
+    meta = extract(TITLE, info={"subject": f"{future} Conference on Things", "creationDate": "D:20190429173603Z"})
+
+    assert meta.year == 2019
+
+
+def test_creation_date_in_the_future_is_not_trusted():
+    """E.g. a PDF written on a computer whose clock was wrong."""
+    future = date.today().year + 5
+
+    assert extract(TITLE, info={"creationDate": f"D:{future}0101000000Z"}).year is None
 
 
 # --- Abstract ------------------------------------------------------------------------------------
@@ -423,3 +477,10 @@ def test_llm_metadata_through_the_real_client(http_mock, real_llm):
     meta = improve_with_llm(page(text="..."), HEURISTIC)
 
     assert (meta.title, meta.year, meta.authors) == ("Attention Is All You Need", 2017, ["Alice Smith"])
+
+
+def test_llm_author_list_is_capped(llm_reply):
+    names = [f"Author {chr(65 + i // 26)}{chr(97 + i % 26)}" for i in range(60)]
+    llm_reply({"authors": names})
+
+    assert improve_with_llm(page(text="..."), HEURISTIC).authors == names[: metadata_extractor.MAX_AUTHORS]

@@ -106,18 +106,19 @@ def test_same_external_id_from_another_source_is_a_different_paper(client):
     assert len(client.get("/api/papers").json()) == 2
 
 
-def test_simultaneous_saves_of_one_paper_store_it_once(client, pdf_download, monkeypatch, db, stored_pdfs):
+@pytest.mark.parametrize("pdf_url", [PDF_URL, None], ids=["with-pdf", "without-pdf"])
+def test_simultaneous_saves_of_one_paper_store_it_once(client, pdf_download, monkeypatch, db, stored_pdfs, pdf_url):
     """Two requests that both pass the "already saved?" check (e.g. a double click): the database's
-    unique constraint stops the second one, and its downloaded PDF is cleaned up."""
+    unique constraint stops the second one, and its downloaded PDF, if it has one, is cleaned up."""
     monkeypatch.setattr(library, "_ensure_not_saved", lambda *args: None)
     pdf_download.respond(200, content=make_pdf())
 
-    first = client.post("/api/papers", json=search_result())
-    second = client.post("/api/papers", json=search_result())
+    first = client.post("/api/papers", json=search_result(pdf_url=pdf_url))
+    second = client.post("/api/papers", json=search_result(pdf_url=pdf_url))
 
     assert (first.status_code, second.status_code) == (201, 409)
     assert len(db.papers()) == 1
-    assert len(stored_pdfs()) == 1
+    assert len(stored_pdfs()) == (1 if pdf_url else 0)
 
 
 def test_client_cannot_set_server_side_fields(client, db):

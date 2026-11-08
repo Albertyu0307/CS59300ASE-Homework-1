@@ -3,11 +3,12 @@
 import re
 
 import httpx
+import pymupdf
 import pytest
 
 from app.services import pdf_processor
 from app.services.pdf_processor import PdfError, delete_pdf, download_pdf, pdf_file, read_pdf, store_pdf
-from tests.factories import make_pdf, make_scanned_pdf
+from tests.factories import make_pdf, make_pdf_without_pages, make_scanned_pdf
 
 PAGE_TEXT = "This is page {n} of the paper. " * 12
 
@@ -59,6 +60,18 @@ def test_a_little_junk_before_the_pdf_header_is_tolerated():
     assert read_pdf(b"\r\n\xef\xbb\xbfjunk" + make_pdf()).page_count == 1
 
 
+def test_whitespace_only_lines_are_left_out_of_the_layout():
+    """A run of spaces is still a text line in the PDF, here in a 30 pt font, bigger than the title's.
+    It is dropped, so the metadata heuristics never see a blank line or its font size."""
+    doc = pymupdf.open(stream=make_pdf(), filetype="pdf")
+    doc[0].insert_text((72, 60), " " * 8, fontsize=30)
+
+    lines = read_pdf(doc.tobytes()).first_page_lines
+
+    assert all(line.text.strip() for line in lines)
+    assert max(line.size for line in lines) == 18  # the title's size
+
+
 def test_pdf_header_too_far_into_the_file_is_not_a_pdf():
     with pytest.raises(PdfError, match="This file is not a PDF."):
         read_pdf(b" " * 1024 + make_pdf())
@@ -99,6 +112,24 @@ def test_too_little_text_for_the_number_of_pages_is_rejected():
     """One page of text followed by many blank-ish pages averages under MIN_CHARS_PER_PAGE."""
     with pytest.raises(PdfError, match="scanned document"):
         read_pdf(make_pdf(extra_pages=("Figure.",) * 8))
+
+
+def test_pdf_without_pages_is_rejected():
+    with pytest.raises(PdfError, match=r"^The PDF has no pages\.$"):
+        read_pdf(make_pdf_without_pages())
+
+
+def test_pdf_whose_pages_cannot_be_read_is_rejected(monkeypatch):
+    """Some damaged files open, then fail once a page's content is parsed."""
+    pdf = make_pdf()
+
+    def broken_page(*args, **kwargs):
+        raise RuntimeError("syntax error in content stream")
+
+    monkeypatch.setattr(pymupdf.Page, "get_text", broken_page)
+
+    with pytest.raises(PdfError, match=r"^The PDF could not be read\. It may be damaged\.$"):
+        read_pdf(pdf)
 
 
 # --- download_pdf --------------------------------------------------------------------------------

@@ -175,3 +175,17 @@ def test_library_that_cannot_be_loaded_shows_an_error(page):
     page.goto("/library.html")
 
     expect(page.locator("#status")).to_have_text("Could not load your library: 503 Service Unavailable")
+
+
+def test_error_detail_that_is_not_a_message_is_shown_as_json(page):
+    """FastAPI's own 422 errors carry a list of problems as their detail, not a sentence: the page
+    shows it as JSON rather than "[object Object]"."""
+    detail = [{"type": "missing", "loc": ["body", "file"], "msg": "Field required"}]
+    page.route("**/api/papers/upload", lambda route: route.fulfill(status=422, json={"detail": detail}))
+    page.goto("/library.html")
+
+    choose_file(page, "paper.pdf", make_pdf())
+
+    expect(page.locator("#upload-status")).to_have_text(
+        'Upload failed: [{"type":"missing","loc":["body","file"],"msg":"Field required"}]'
+    )

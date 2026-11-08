@@ -81,6 +81,21 @@ def make_scanned_pdf(pages: int = 1) -> bytes:
     return doc.tobytes()
 
 
+def make_pdf_without_pages() -> bytes:
+    """A well-formed PDF whose page tree is empty. Written out by hand: PyMuPDF refuses to save one."""
+    objects = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [] /Count 0 >>"]
+    pdf = b"%PDF-1.7\n"
+    offsets = []
+    for number, body in enumerate(objects, 1):
+        offsets.append(len(pdf))
+        pdf += b"%d 0 obj\n%s\nendobj\n" % (number, body)
+    xref = len(pdf)
+    pdf += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    pdf += b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
+    pdf += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)
+    return pdf
+
+
 def _textbox(page: pymupdf.Page, top: float, text: str, height: float) -> float:
     """Writes wrapped text below `top` and returns the y where it ended."""
     rect = pymupdf.Rect(72, top, 523, top + height)

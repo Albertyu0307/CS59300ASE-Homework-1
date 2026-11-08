@@ -1,26 +1,26 @@
 # Test catalog
 
-Every automated test, grouped by feature: 423 test cases in 39 groups and 9 areas.
+Every automated test, grouped by feature: 449 test cases in 39 groups and 9 areas.
 For how to run them and how they are set up, see "Running the tests" in the [README](../../README.md).
 
 - The group and test numbers are only for this catalog (e.g. "group 17, #4"); they aren't in the code.
 - "(×N: …)" means one test function that runs N cases (`@pytest.mark.parametrize`).
 - **xfail** marks a test for a known bug: it is expected to fail until the bug is fixed.
-- Last checked on 2026-11-08: 419 passed, 4 xfailed. `pytest --collect-only -q` lists every case.
+- Last checked on 2026-11-08: 445 passed, 4 xfailed. `pytest --collect-only -q` lists every case.
   When tests are added or removed, update this file and the counts.
 
 | Area | Groups | Test cases |
 |---|---|---|
 | A. App and infrastructure | 1–3 | 24 |
 | B. Search | 4–10 | 60 |
-| C. Library API | 11–15 | 61 |
+| C. Library API | 11–15 | 62 |
 | D. LLM features through the API | 16–18 | 37 |
 | E. LLM client | 19–22 | 53 |
-| F. PDF processing | 23–25 | 30 |
-| G. Metadata extraction for uploads | 26–31 | 83 |
+| F. PDF processing | 23–25 | 33 |
+| G. Metadata extraction for uploads | 26–31 | 99 |
 | H. Prompts and paper text | 32–33 | 20 |
-| I. Frontend in a real browser | 34–39 | 55 |
-| **Total** | **39** | **423** |
+| I. Frontend in a real browser | 34–39 | 61 |
+| **Total** | **39** | **449** |
 
 ---
 
@@ -112,9 +112,9 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## C. Library API (`test_api_papers.py`): 61 cases
+## C. Library API (`test_api_papers.py`): 62 cases
 
-### 11. Saving search results (20 cases)
+### 11. Saving search results (21 cases)
 **What they test:** `POST /api/papers`: downloading the PDF, handling download failures, and preventing duplicates.
 1. `test_saving_a_result_downloads_its_pdf_and_stores_the_full_text`: returns 201 with `text_status: full`; the PDF's body text is in the database and the file is on disk.
 2. `test_response_never_contains_full_text_or_local_paths`: the response contains exactly the 12 public fields.
@@ -122,7 +122,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 4. `test_result_is_still_saved_when_its_pdf_cannot_be_used` (×6: 404, an HTML page, scanned, password-protected, timeout, unreachable): returns 201 with `failed`, and no file is stored.
 5. `test_saving_the_same_result_twice_is_refused`: returns 409 "This paper is already in your library." without a second download.
 6. `test_same_external_id_from_another_source_is_a_different_paper`: returns 201, giving two papers.
-7. `test_simultaneous_saves_of_one_paper_store_it_once`: in a simulated double-click race, the second save gets 409, leaving one row and one file.
+7. `test_simultaneous_saves_of_one_paper_store_it_once` (×2: with a PDF, without one): in a simulated double-click race, the second save gets 409, leaving one row and, for a paper with a PDF, one file.
 8. `test_client_cannot_set_server_side_fields`: `full_text`, `summary`, `text_status` and `id` in the request body are ignored.
 9. `test_invalid_search_result_is_rejected_with_422` (×7: missing or wrong fields): returns 422, and nothing is saved.
 
@@ -257,17 +257,18 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## F. PDF processing (`test_pdf_processor.py`): 30 cases
+## F. PDF processing (`test_pdf_processor.py`): 33 cases
 
-### 23. Text extraction (5 cases)
+### 23. Text extraction (6 cases)
 **What they test:** reading text and layout from a valid PDF.
 1. `test_text_and_layout_of_the_first_page_are_extracted`: the text, page size, title font size (18 pt) and rotated arXiv stamp are all read.
 2. `test_all_pages_are_extracted_in_order`: page 2 comes before page 3, separated by a blank line.
 3. `test_document_info_fields_are_read_and_blank_ones_dropped`: title and author are kept; blank fields are omitted.
 4. `test_words_hyphenated_at_a_line_break_are_rejoined`: "representa-↵tion" becomes "representation"; "Pre-↵Training" and "Large-scale" keep their hyphens.
 5. `test_a_little_junk_before_the_pdf_header_is_tolerated`: the file still opens.
+6. `test_whitespace_only_lines_are_left_out_of_the_layout`: a run of spaces in a 30 pt font is dropped, so no blank line reaches the metadata heuristics and the largest size left is the title's 18 pt.
 
-### 24. Rejecting unusable files (12 cases)
+### 24. Rejecting unusable files (14 cases)
 **What they test:** that files without usable text are refused with a clear reason.
 1. `test_pdf_header_too_far_into_the_file_is_not_a_pdf`: a header after 1024 bytes means "not a PDF".
 2. `test_non_pdf_files_are_rejected` (×5: empty, text, HTML, PNG, ZIP): raises "This file is not a PDF."
@@ -275,6 +276,8 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 4. `test_password_protected_pdf_is_rejected`: raises "The PDF is password-protected."
 5. `test_scanned_pdf_without_a_text_layer_is_rejected` (×2: 1 page, 3 pages): raises "…probably a scanned document".
 6. `test_too_little_text_for_the_number_of_pages_is_rejected`: one page of text plus 8 near-empty pages is rejected as scanned.
+7. `test_pdf_without_pages_is_rejected`: a well-formed PDF with an empty page tree raises "The PDF has no pages."
+8. `test_pdf_whose_pages_cannot_be_read_is_rejected`: a PDF that opens but whose page text can't be extracted raises "The PDF could not be read. It may be damaged."
 
 ### 25. Downloads and storage (13 cases)
 **What they test:** downloading PDFs and keeping them in `data/pdfs/`.
@@ -290,9 +293,9 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## G. Metadata extraction for uploads (`test_metadata_extractor.py`): 83 cases
+## G. Metadata extraction for uploads (`test_metadata_extractor.py`): 99 cases
 
-### 26. Title (14 cases)
+### 26. Title (21 cases)
 **What they test:** finding the title on page 1, and the fallbacks when none is found.
 1. `test_title_is_the_largest_text_in_the_top_half`: an 18 pt line beats the 9 pt header and 11 pt authors.
 2. `test_title_spanning_several_lines_is_joined`: two 18 pt lines are joined into one title.
@@ -301,8 +304,10 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 5. `test_implausible_title_falls_back_to_the_pdf_title_field`: "Draft" is replaced by the PDF's title field.
 6. `test_junk_title_fields_fall_back_to_the_filename` (×6: "Microsoft Word - paper.docx", "Untitled Document 3", "camera ready main.tex", …, each long enough to pass as a title): the junk filter rejects them, and the filename (without `.pdf`) is used instead.
 7. `test_no_usable_title_and_no_filename_gives_a_placeholder`: "Untitled paper".
+8. `test_title_length_limits` (×5: 10 and 300 characters accepted; 9 and 301 characters, and a single word, rejected): a rejected title falls back to the filename.
+9. `test_next_title_line_may_be_up_to_twice_the_font_size_below` (×2): an 18 pt line 36 pt below is joined to the title; one 37 pt below is not.
 
-### 27. Authors (16 cases)
+### 27. Authors (22 cases)
 **What they test:** finding author names and filtering out affiliations, emails and footnote marks.
 1. `test_authors_from_the_pdf_author_field`: the field is split on `;`, `and` and `&` into 4 names.
 2. `test_author_field_that_is_not_all_names_is_ignored` (×4: "LaTeX with hyperref", "admin", …): the names are read from the page lines instead.
@@ -312,8 +317,9 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 6. `test_affiliations_and_other_text_are_not_authors` (×6: "Google Research", "Stanford University", …): returns `[]`.
 7. `test_no_authors_without_a_title`: returns `[]`.
 8. `test_author_list_is_capped`: 60 names become 50.
+9. `test_author_name_limits` (×6: 2 and 5 words accepted, 1 and 6 words rejected; 60 characters accepted, 61 rejected): only names within the limits are taken from the author field.
 
-### 28. Year (12 cases)
+### 28. Year (14 cases)
 **What they test:** where the publication year comes from, and which source wins.
 1. `test_year_comes_from_the_arxiv_id`: ID `1706.…` gives 2017, even when a header or stamp says otherwise.
 2. `test_year_from_a_venue_header` (×4: NeurIPS 2022, ICLR 2021, "© 2019 IEEE", a 2023 workshop): each year is found.
@@ -323,6 +329,8 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 6. `test_year_from_the_creation_date`: `D:2019…` gives 2019.
 7. `test_header_year_wins_over_the_creation_date`: 2021 from the header, not 2023 from the creation date.
 8. `test_no_year_found`: `None`.
+9. `test_future_year_in_the_subject_field_falls_back_to_the_creation_date`: a subject year 5 years ahead is skipped, and the creation date's 2019 is used.
+10. `test_creation_date_in_the_future_is_not_trusted`: a creation date 5 years ahead gives `None`.
 
 ### 29. Abstract and arXiv ID (16 cases)
 **What they test:** cutting out the abstract, and recognizing arXiv's margin stamp.
@@ -341,7 +349,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 2. `test_generated_arxiv_paper`: ID `1912.00001` and year 2019.
 3. `test_paper_with_no_detectable_metadata_uses_the_filename`: title "My Notes", no authors, no abstract.
 
-### 31. LLM improvement of metadata (22 cases)
+### 31. LLM improvement of metadata (23 cases)
 **What they test:** when the LLM's values replace the heuristic ones.
 1. `test_mock_llm_leaves_the_heuristics_unchanged`: nothing changes in mock mode.
 2. `test_llm_values_replace_the_heuristic_ones`: plausible LLM values replace all four fields.
@@ -351,6 +359,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 6. `test_llm_year_as_a_string_is_accepted`: "2019" becomes 2019.
 7. `test_llm_failure_keeps_the_heuristics`: on an LLM error, the heuristics are kept.
 8. `test_llm_metadata_through_the_real_client`: a fenced JSON reply updates the title and year, and the authors are kept.
+9. `test_llm_author_list_is_capped`: 60 names from the LLM become the first 50.
 
 ---
 
@@ -379,9 +388,9 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 
 ---
 
-## I. Frontend in a real browser (`tests/e2e/`): 55 cases
+## I. Frontend in a real browser (`tests/e2e/`): 61 cases
 
-### 34. Search page (17 cases)
+### 34. Search page (20 cases)
 **What they test:** what a user sees and can do on `index.html`.
 1. `test_footer_shows_the_backend_is_up`: the footer says "Backend: ok".
 2. `test_search_shows_a_card_per_result`: the URL becomes `?q=…&source=auto`; there are 2 cards with title, "Alice Smith, Bob Jones · 2021", abstract, and links.
@@ -400,8 +409,11 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 15. `test_result_without_authors_or_year_or_abstract`: "Unknown authors · Year unknown" and "No abstract available."
 16. `test_long_author_lists_are_shortened`: 6 names plus "et al. (9 authors)".
 17. `test_paper_data_is_shown_as_text_never_as_html`: HTML in a title or abstract is displayed as plain text and never runs.
+18. `test_footer_says_when_the_backend_is_unreachable`: a failed health check shows "Backend unreachable: 503 Service Unavailable".
+19. `test_results_are_shown_even_when_the_library_cannot_be_loaded`: the results appear with no error; a paper already in the library shows "Save to library", and saving it gets a 409 that shows "Saved".
+20. `test_source_picker_works_when_local_storage_is_blocked`: with localStorage throwing, the picker starts at auto, choosing OpenAlex raises no error, and the search still runs on OpenAlex.
 
-### 35. Library page (15 cases)
+### 35. Library page (16 cases)
 **What they test:** listing, uploading and deleting on `library.html`.
 1. `test_empty_library_explains_how_to_add_papers`: shows the "Your library is empty…" message.
 2. `test_saved_papers_are_listed_newest_first`: titles link to `paper.html?id=N`, with "Uploaded PDF" and warning badges.
@@ -415,14 +427,16 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 10. `test_deleting_a_paper_already_deleted_elsewhere_removes_its_card`: a 404 still removes the card.
 11. `test_failed_delete_keeps_the_card_and_shows_the_error`: shows 'Could not delete "…": Disk is full'.
 12. `test_library_that_cannot_be_loaded_shows_an_error`: shows "Could not load your library: 503 Service Unavailable".
+13. `test_error_detail_that_is_not_a_message_is_shown_as_json`: a 422 whose detail is a list (FastAPI's validation format) shows that list as JSON, not "[object Object]".
 
-### 36. Paper page: details and summary (5 cases)
+### 36. Paper page: details and summary (6 cases)
 **What they test:** the top half of `paper.html`.
 1. `test_paper_details_are_shown`: title, authors, tab title, "No summary yet…", a "Summarize" button and 5 quick-question buttons.
 2. `test_summarize_shows_and_stores_the_summary`: the summary appears, the button becomes "Regenerate", and the summary is saved.
 3. `test_cached_summary_is_shown_on_load`: the saved summary shows without clicking.
 4. `test_regenerate_asks_for_a_fresh_summary`: the request ends in `?refresh=true`.
 5. `test_summary_failure_is_explained`: shows "Could not generate the summary: …quota…", and the button is enabled again.
+6. `test_summary_that_cannot_be_loaded_is_explained`: shows a red "Could not load the summary: Database is locked" under the paper's details; Summarize still brings up the stored summary.
 
 ### 37. Paper page: what the LLM sees (4 cases)
 **What they test:** the notes that explain what text the LLM gets.
@@ -431,7 +445,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 3. `test_paper_without_any_text_offers_no_llm_features`: a note; Summarize, the quick questions and the question box are marked hidden.
 4. `test_paper_without_any_text_hides_its_controls_even_without_the_cdn`: **xfail (known bug).** When Pico.css can't load, the quick-question buttons stay visible.
 
-### 38. Paper page: questions and answers (7 cases)
+### 38. Paper page: questions and answers (8 cases)
 **What they test:** asking questions in the chat section.
 1. `test_asking_a_typed_question`: "You" and "Assistant" messages appear, the box is cleared, and 2 messages are saved.
 2. `test_enter_sends_and_shift_enter_adds_a_line`: a two-line question is sent with Enter.
@@ -440,6 +454,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 5. `test_earlier_questions_are_shown_when_the_page_opens`: the 4 earlier messages appear in order.
 6. `test_failed_question_is_kept_for_a_retry`: an error message; the question disappears from the chat but stays in the box; nothing is saved.
 7. `test_a_second_question_waits_for_the_first`: pressing Enter again while a question is being answered sends nothing: one request, two stored messages.
+8. `test_chat_history_that_cannot_be_loaded_is_explained`: shows "Could not load the earlier questions: Database is locked" with an empty chat; a new question is still answered and stored.
 
 ### 39. Paper page: bad links and Markdown (7 cases)
 **What they test:** broken page links, and how LLM answers are rendered.

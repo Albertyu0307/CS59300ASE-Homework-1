@@ -234,3 +234,48 @@ def test_paper_data_is_shown_as_text_never_as_html(page, openalex):
     expect(page.locator(".paper-title")).to_have_text(evil_title)
     expect(page.locator(".paper-card img, .paper-card script, .paper-card b")).to_have_count(0)
     assert page.evaluate("window.hacked") is None
+
+
+def test_footer_says_when_the_backend_is_unreachable(page):
+    page.route("**/api/health", lambda route: route.fulfill(status=503, body="Service Unavailable", content_type="text/plain"))
+
+    page.goto("/")
+
+    expect(page.locator("#health")).to_have_text("Backend unreachable: 503 Service Unavailable")
+
+
+def test_results_are_shown_even_when_the_library_cannot_be_loaded(page, arxiv, db):
+    """The library list only adds the "Saved" marks. Without it, a paper already in the library shows a
+    Save button, and saving it gets a 409, which counts as saved."""
+    db.add_paper(source="arxiv", external_id="2101.00001")
+    arxiv.respond(200, text=arxiv_feed(arxiv_entry("2101.00001")))
+    page.route("**/api/papers", lambda route: route.fulfill(status=503, body="Service Unavailable", content_type="text/plain")
+               if route.request.method == "GET" else route.continue_())
+
+    search(page, "graph")
+
+    expect(page.locator(".paper-card")).to_have_count(1)
+    expect(page.locator("#status")).to_be_hidden()
+    page.get_by_role("button", name="Save to library").click()
+    expect(page.get_by_role("button", name="Saved")).to_be_disabled()
+    expect(page.get_by_role("link", name="Open in library")).to_have_attribute("href", "library.html")
+    assert len(db.papers()) == 1
+
+
+def test_source_picker_works_when_local_storage_is_blocked(page, openalex):
+    """Browsers that block site data make localStorage throw; the choice just isn't remembered."""
+    page.add_init_script(
+        "Object.defineProperty(window, 'localStorage', {"
+        " get() { throw new DOMException('The operation is insecure.', 'SecurityError'); } });"
+    )
+    openalex.respond(200, json=openalex_response(openalex_work()))
+    page.goto("/")
+    assert page.evaluate("() => { try { localStorage; return false; } catch { return true; } }")  # really blocked
+    expect(page.locator("#search-source")).to_have_value("auto")
+
+    page.select_option("#search-source", "openalex")  # saving the choice throws, and is skipped
+    page.fill("#search-input", "residual")
+    page.click("button[type=submit]")
+
+    expect(page.locator("#search-source")).to_have_value("openalex")  # from the URL
+    expect(page.locator(".paper-card .paper-title")).to_have_text("Deep Residual Learning")
