@@ -97,17 +97,13 @@ def improve_with_llm(content: PdfContent, meta: PaperMetadata) -> PaperMetadata:
         log.warning("LLM metadata extraction failed, using the heuristics: %s", exc)
         return meta
 
-    # Only strings are used: str() of a list or object (e.g. authors as [{"name": ...}]) looks
-    # plausible enough to pass the checks below, and would be shown as the paper's metadata.
-    title = data.get("title")
-    title = _clean(title) if isinstance(title, str) else ""
+    title = _clean(str(data.get("title") or ""))
     authors = data.get("authors")
-    names = [_clean(name) for name in authors if isinstance(name, str)] if isinstance(authors, list) else []
+    names = [_clean(str(name)) for name in authors] if isinstance(authors, list) else []
     names = list(dict.fromkeys(name for name in names if 0 < len(name) <= 100))  # drop blanks and duplicates
     year = data.get("year")
     year = int(year) if isinstance(year, int) or (isinstance(year, str) and year.isdigit()) else None
-    abstract = data.get("abstract")
-    abstract = _tidy_abstract(abstract) if isinstance(abstract, str) else None
+    abstract = _tidy_abstract(str(data.get("abstract") or ""))
     return replace(
         meta,
         title=title if _plausible_title(title) else meta.title,

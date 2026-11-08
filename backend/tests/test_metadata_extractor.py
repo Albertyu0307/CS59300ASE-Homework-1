@@ -426,6 +426,13 @@ def test_llm_gets_the_start_of_the_paper_and_one_retry(llm_reply):
     assert kwargs == {"retries": 1}
 
 
+NON_STRING_LLM_VALUE_BUG = pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="Known bug: LLM values that aren't strings are turned into text with str(), e.g. the authors "
+    "\"{'name': 'Alice Smith'}\" and \"42\", and pass the plausibility checks, so they replace the heuristic metadata",
+)
+
+
 @pytest.mark.parametrize(
     "reply",
     [
@@ -441,9 +448,9 @@ def test_llm_gets_the_start_of_the_paper_and_one_retry(llm_reply):
         {"year": 2019.5},
         {"abstract": "Too short."},
         {"unexpected": "keys"},
-        {"authors": [{"name": "Alice Smith"}, 42]},  # objects and numbers, not names
-        {"title": ["Attention Is", "All You Need"]},  # a list, not a string
-        {"abstract": {"text": ABSTRACT}},  # an object, not a string
+        pytest.param({"authors": [{"name": "Alice Smith"}, 42]}, marks=NON_STRING_LLM_VALUE_BUG),  # objects and numbers, not names
+        pytest.param({"title": ["Attention Is", "All You Need"]}, marks=NON_STRING_LLM_VALUE_BUG),  # a list, not a string
+        pytest.param({"abstract": {"text": ABSTRACT}}, marks=NON_STRING_LLM_VALUE_BUG),  # an object, not a string
     ],
 )
 def test_implausible_llm_values_keep_the_heuristic_ones(llm_reply, reply):

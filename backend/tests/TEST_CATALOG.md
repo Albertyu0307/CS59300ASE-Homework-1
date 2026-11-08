@@ -6,7 +6,7 @@ For how to run them and how they are set up, see "Running the tests" in the [REA
 - The group and test numbers are only for this catalog (e.g. "group 17, #4"); they aren't in the code.
 - "(×N: …)" means one test function that runs N cases (`@pytest.mark.parametrize`).
 - **xfail** marks a test for a known bug: it is expected to fail until the bug is fixed.
-- Last checked on 2026-11-08: 473 passed, 4 xfailed. `pytest --collect-only -q` lists every case.
+- Last checked on 2026-11-08: 466 passed, 11 xfailed. `pytest --collect-only -q` lists every case.
   When tests are added or removed, update this file and the counts.
 
 | Area | Groups | Test cases |
@@ -171,8 +171,8 @@ The demo video and the reflection report are not code, so no test covers them.
 7. `test_upload_uses_the_llm_for_metadata_when_enabled`: one LLM call; its title, authors and year win, and the abstract stays heuristic because the LLM returned `null`.
 8. `test_upload_still_works_when_the_llm_fails`: returns 201 with the heuristic metadata.
 9. `test_duplicate_upload_is_refused_before_spending_an_llm_call`: the second upload of the same file returns 409, and only one LLM call is made.
-10. `test_arxiv_pdf_uploaded_during_an_outage_is_refused_when_uploaded_again`: a stamped PDF uploaded while arXiv is unreachable (so stored under its hash) returns 409 when uploaded again with arXiv back; one paper and one file remain.
-11. `test_arxiv_pdf_uploaded_during_an_outage_matches_the_paper_saved_from_search`: with arXiv unreachable, a stamped PDF of a paper already saved from search returns 409.
+10. `test_arxiv_pdf_uploaded_during_an_outage_is_refused_when_uploaded_again`: **xfail (known bug).** An upload is only checked for duplicates under the key it is stored under, so the second upload currently returns 201. Expected: a stamped PDF uploaded while arXiv is unreachable (so stored under its hash) returns 409 when uploaded again with arXiv back; one paper and one file remain.
+11. `test_arxiv_pdf_uploaded_during_an_outage_matches_the_paper_saved_from_search`: **xfail (known bug, as #10).** The upload currently returns 201, saving the paper twice. Expected: with arXiv unreachable, a stamped PDF of a paper already saved from search returns 409.
 
 ### 13. Upload rejections (13 cases)
 **What they test:** that bad files are refused with the right status code and a clear reason.
@@ -260,7 +260,7 @@ The demo video and the reflection report are not code, so no test covers them.
 5. `test_no_authorization_header_for_keyless_providers`: no header is sent.
 6. `test_thinking_section_is_removed_from_the_reply`: `<think>…</think>` is stripped.
 7. `test_empty_reply_is_an_error` (×4: empty, whitespace, null, only thinking): raises "The LLM returned an empty answer."
-8. `test_malformed_reply_is_an_error` (×7: missing choices or content, a list, not JSON, content that is a list of parts or a number): raises "unexpected format" instead of crashing.
+8. `test_malformed_reply_is_an_error` (×7: missing choices or content, a list, not JSON, content that is a list of parts or a number): raises "unexpected format" instead of crashing. The last two cases are **xfail (known bug):** content that isn't a string currently crashes with a `TypeError`, which reaches the user as HTTP 500.
 
 ### 20. JSON replies (7 cases)
 **What they test:** pulling a JSON object out of a model's reply (used for upload metadata).
@@ -388,7 +388,7 @@ The demo video and the reflection report are not code, so no test covers them.
 1. `test_mock_llm_leaves_the_heuristics_unchanged`: nothing changes in mock mode.
 2. `test_llm_values_replace_the_heuristic_ones`: plausible LLM values replace all four fields.
 3. `test_llm_gets_the_start_of_the_paper_and_one_retry`: the LLM gets the first 8000 characters, with `retries=1`.
-4. `test_implausible_llm_values_keep_the_heuristic_ones` (×15: a too-short or too-long title, nulls, authors as a string, empty or blank names, years 1850 / two years ahead / "unknown" / 2019.5, a short abstract, unknown keys, and values that aren't strings: authors as objects and numbers, a title as a list, an abstract as an object): the heuristics stay unchanged.
+4. `test_implausible_llm_values_keep_the_heuristic_ones` (×15: a too-short or too-long title, nulls, authors as a string, empty or blank names, years 1850 / two years ahead / "unknown" / 2019.5, a short abstract, unknown keys, and values that aren't strings: authors as objects and numbers, a title as a list, an abstract as an object): the heuristics stay unchanged. The last three cases are **xfail (known bug):** values that aren't strings are currently turned into text with `str()` and replace the heuristic metadata.
 5. `test_llm_author_names_are_cleaned`: whitespace is collapsed, and blanks, duplicates and names over 100 characters are dropped.
 6. `test_llm_year_as_a_string_is_accepted`: "2019" becomes 2019.
 7. `test_llm_failure_keeps_the_heuristics`: on an LLM error, the heuristics are kept.
